@@ -39,34 +39,37 @@ export default async function handler(req, res) {
 
     const base64 = body.image.replace(/^data:image\/\w+;base64,/, "");
 
-    const deepRes = await fetch("https://api.deepai.org/api/image-tagging", {
+    // Call Puter AI Chat API with image
+    const puterRes = await fetch("https://api.puter.com/v2/ai/chat", {
       method: "POST",
       headers: {
-        "Api-Key": process.env.DEEPAI_KEY,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        image: `data:image/jpeg;base64,${base64}`
+        model: "gpt-5.4-nano",
+        messages: [
+          { role: "user", content: "What clothing item is in this image?" }
+        ],
+        media: [
+          `data:image/jpeg;base64,${base64}`
+        ]
       })
     });
 
-    const json = await deepRes.json();
+    const json = await puterRes.json();
 
-    if (!deepRes.ok) {
+    if (!puterRes.ok) {
       return res.status(502).json({
-        error: "DeepAI error",
+        error: "Puter error",
         details: json
       });
     }
 
-    let label = "unknown";
-
-    if (json.output && json.output.tags && json.output.tags.length > 0) {
-      label = json.output.tags[0].tag;
-    }
+    // Extract the model's answer
+    const answer = json?.choices?.[0]?.message?.content || "unknown";
 
     return res.status(200).json({
-      classification: { label }
+      classification: { label: answer }
     });
 
   } catch (err) {
