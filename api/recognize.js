@@ -24,18 +24,6 @@ async function readRawBody(req, limitBytes = 50 * 1024 * 1024) {
   });
 }
 
-async function callHF(base64) {
-  const url = "https://api-inference.huggingface.co/models/patrickjohncyh/fashion-clip";
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ image: base64 })
-  });
-
-  return res;
-}
-
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "POST only" });
@@ -51,14 +39,49 @@ export default async function handler(req, res) {
 
     const base64 = body.image.replace(/^data:image\/\w+;base64,/, "");
 
-    // ⭐ RETRY LOGIC
-    let hfRes = await callHF(base64);
+    // Zero-shot clothing labels we care about
+    const candidateLabels = [
+      "tshirt",
+      "shirt",
+      "blouse",
+      "tank top",
+      "polo",
+      "sweater",
+      "hoodie",
+      "jeans",
+      "pants",
+      "shorts",
+      "skirt",
+      "leggings",
+      "dress",
+      "gown",
+      "coat",
+      "jacket",
+      "parka",
+      "sneakers",
+      "boots",
+      "sandals",
+      "heels",
+      "hat",
+      "cap",
+      "scarf",
+      "belt",
+      "bag"
+    ];
 
-    if (hfRes.status === 502 || hfRes.status === 503) {
-      console.log("HF cold start — retrying...");
-      await new Promise((r) => setTimeout(r, 1500));
-      hfRes = await callHF(base64);
-    }
+    const hfRes = await fetch(
+      "https://api-inference.huggingface.co/models/patrickjohncyh/fashion-clip",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          inputs: {
+            image: base64,
+            candidate_labels: candidateLabels
+          }
+        })
+      }
+    );
 
     if (!hfRes.ok) {
       const text = await hfRes.text();
@@ -71,9 +94,12 @@ export default async function handler(req, res) {
 
     const hfJson = await hfRes.json();
 
+    // HF zero-shot returns something like:
+    // { labels: [...], scores: [...] }
     let label = "unknown";
-    if (Array.isArray(hfJson) && hfJson.length > 0) {
-      label = hfJson[0].label || "unknown";
+
+    if (hfJson && Array.isArray(hfJson.labels) && hfJson.labels.length > 0) {
+      label = hfJson.labels[0] || "unknown";
     }
 
     return res.status(200).json({
