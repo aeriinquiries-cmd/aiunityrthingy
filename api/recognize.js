@@ -37,11 +37,9 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing 'image' field" });
     }
 
-    // Extract base64
     const base64 = body.image.replace(/^data:image\/\w+;base64,/, "");
     const bytes = Buffer.from(base64, "base64");
 
-    // Call BLIP with your HF token
     const hfRes = await fetch(
       "https://api-inference.huggingface.co/models/Salesforce/blip-image-captioning-base",
       {
@@ -65,8 +63,6 @@ export default async function handler(req, res) {
         details: text
       });
     }
-
-    console.log("HF_TOKEN exists:", !!process.env.HF_TOKEN);
 
     const caption = json?.[0]?.generated_text || "unknown";
 
