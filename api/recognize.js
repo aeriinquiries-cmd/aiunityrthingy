@@ -37,44 +37,35 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing 'image' field" });
     }
 
+    // Extract base64
     const base64 = body.image.replace(/^data:image\/\w+;base64,/, "");
+    const bytes = Buffer.from(base64, "base64");
 
-    const puterRes = await fetch("https://api.puter.com/v2/ai/chat", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "gpt-5.4-nano",
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: "Identify the clothing item in this image." },
-              { type: "image", image: `data:image/jpeg;base64,${base64}` }
-            ]
-          }
-        ]
-      })
-    });
+    // Call BLIP model
+    const hfRes = await fetch(
+      "https://api-inference.huggingface.co/models/Salesforce/blip-image-captioning-base",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/octet-stream"
+        },
+        body: bytes
+      }
+    );
 
-    const text = await puterRes.text();
+    const json = await hfRes.json();
 
-    let json;
-    try {
-      json = JSON.parse(text);
-    } catch {
+    if (!hfRes.ok) {
       return res.status(502).json({
-        error: "Invalid response from Puter",
-        details: text
+        error: "HuggingFace error",
+        details: json
       });
     }
 
-    const answer =
-      json?.choices?.[0]?.message?.content?.[0]?.text || "unknown";
+    const caption = json?.[0]?.generated_text || "unknown";
 
     return res.status(200).json({
-      classification: { label: answer }
+      classification: { label: caption }
     });
 
   } catch (err) {
