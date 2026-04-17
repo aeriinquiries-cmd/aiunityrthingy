@@ -22,7 +22,17 @@ export default async function handler(req, res) {
       })
     });
 
-    const data = await puterRes.json();
+    const text = await puterRes.text();
+
+    // If Puter returns HTML, it's an error
+    if (text.startsWith("<")) {
+      return res.status(502).json({
+        error: "Puter returned an error",
+        details: text
+      });
+    }
+
+    const data = JSON.parse(text);
     return res.status(200).json({ result: data });
 
   } catch (err) {
