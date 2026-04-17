@@ -39,67 +39,30 @@ export default async function handler(req, res) {
 
     const base64 = body.image.replace(/^data:image\/\w+;base64,/, "");
 
-    // Zero-shot clothing labels we care about
-    const candidateLabels = [
-      "tshirt",
-      "shirt",
-      "blouse",
-      "tank top",
-      "polo",
-      "sweater",
-      "hoodie",
-      "jeans",
-      "pants",
-      "shorts",
-      "skirt",
-      "leggings",
-      "dress",
-      "gown",
-      "coat",
-      "jacket",
-      "parka",
-      "sneakers",
-      "boots",
-      "sandals",
-      "heels",
-      "hat",
-      "cap",
-      "scarf",
-      "belt",
-      "bag"
-    ];
+    const deepRes = await fetch("https://api.deepai.org/api/image-tagging", {
+      method: "POST",
+      headers: {
+        "Api-Key": process.env.DEEPAI_KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        image: `data:image/jpeg;base64,${base64}`
+      })
+    });
 
-    const hfRes = await fetch(
-      "https://api-inference.huggingface.co/models/patrickjohncyh/fashion-clip",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          inputs: {
-            image: base64,
-            candidate_labels: candidateLabels
-          }
-        })
-      }
-    );
+    const json = await deepRes.json();
 
-    if (!hfRes.ok) {
-      const text = await hfRes.text();
+    if (!deepRes.ok) {
       return res.status(502).json({
-        error: "HuggingFace error",
-        status: hfRes.status,
-        body: text
+        error: "DeepAI error",
+        details: json
       });
     }
 
-    const hfJson = await hfRes.json();
-
-    // HF zero-shot returns something like:
-    // { labels: [...], scores: [...] }
     let label = "unknown";
 
-    if (hfJson && Array.isArray(hfJson.labels) && hfJson.labels.length > 0) {
-      label = hfJson.labels[0] || "unknown";
+    if (json.output && json.output.tags && json.output.tags.length > 0) {
+      label = json.output.tags[0].tag;
     }
 
     return res.status(200).json({
