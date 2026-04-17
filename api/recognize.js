@@ -70,7 +70,8 @@ export default async function handler(req, res) {
       });
     }
 
-    const answer = json?.choices?.[0]?.message?.content?.[0]?.text || "unknown";
+    const answer =
+      json?.choices?.[0]?.message?.content?.[0]?.text || "unknown";
 
     return res.status(200).json({
       classification: { label: answer }
