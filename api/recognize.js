@@ -4,13 +4,12 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { image } = JSON.parse(req.body);
+    const { image } = req.body;
 
     if (!image) {
       return res.status(400).json({ error: "Missing image" });
     }
 
-    // Send to Puter AI
     const puterRes = await fetch("https://api.puter.com/v2/ai/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -18,13 +17,14 @@ export default async function handler(req, res) {
         messages: [
           { role: "user", content: "Describe this image." }
         ],
-        media: [image], // base64 or URL
+        media: [image],
         model: "openai/gpt-5.4-nano"
       })
     });
 
     const data = await puterRes.json();
     return res.status(200).json({ result: data });
+
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
