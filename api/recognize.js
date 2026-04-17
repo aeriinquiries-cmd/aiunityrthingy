@@ -5,7 +5,11 @@ export const config = {
     },
   },
 };
-// redeploy
+
+console.log("REQ HEADERS:", req.headers);
+
+console.log("REQ BODY (raw):", req.body);
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "POST only" });
