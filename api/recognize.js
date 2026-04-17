@@ -1,53 +1,27 @@
-export const config = {
-  api: {
-    bodyParser: false
+// Call the Fashion-CLIP model
+const hfRes = await fetch(
+  "https://api-inference.huggingface.co/models/patrickjohncyh/fashion-clip",
+  {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      image: base64
+    })
   }
-};
+);
 
-async function readRawBody(req, limitBytes = 50 * 1024 * 1024) {
-  return await new Promise((resolve, reject) => {
-    let data = "";
-    let received = 0;
-    req.on("data", (chunk) => {
-      received += chunk.length;
-      if (received > limitBytes) {
-        reject(new Error("Request body too large"));
-        req.destroy();
-        return;
-      }
-      data += chunk.toString("utf8");
-    });
-    req.on("end", () => resolve(data));
-    req.on("error", (err) => reject(err));
-  });
+const hfJson = await hfRes.json();
+
+// Extract label (model returns similarity scores)
+let label = "unknown";
+
+if (Array.isArray(hfJson) && hfJson.length > 0) {
+  // The model returns an array of objects with labels + scores
+  label = hfJson[0].label || "unknown";
 }
 
-export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "POST only" });
+return res.status(200).json({
+  classification: {
+    label
   }
-
-  try {
-    const raw = await readRawBody(req);
-    const body = JSON.parse(raw);
-
-    if (!body.image) {
-      return res.status(400).json({ error: "Missing image field" });
-    }
-
-    // Remove data URL prefix if present
-    const base64 = body.image.replace(/^data:image\/\w+;base64,/, "");
-
-    // CALL YOUR AI MODEL HERE
-    // For now, return a fake label so Unity works
-    return res.status(200).json({
-      classification: {
-        label: "tshirt"
-      }
-    });
-
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: "Server error", details: err.message });
-  }
-}
+});
