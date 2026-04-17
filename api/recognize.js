@@ -1,6 +1,27 @@
 export const config = {
-  api: { bodyParser: { sizeLimit: "10mb" } }
+  api: {
+    bodyParser: false
+  }
 };
+
+// small helper to read the raw request body
+async function readRawBody(req, limitBytes = 50 * 1024 * 1024) {
+  return await new Promise((resolve, reject) => {
+    let data = "";
+    let received = 0;
+    req.on("data", (chunk) => {
+      received += chunk.length;
+      if (received > limitBytes) {
+        reject(new Error("Request body too large"));
+        req.destroy();
+        return;
+      }
+      data += chunk.toString("utf8");
+    });
+    req.on("end", () => resolve(data));
+    req.on("error", (err) => reject(err));
+  });
+}
 
 function isLikelyBase64Image(s) {
   if (typeof s !== "string") return false;
@@ -15,29 +36,30 @@ export default async function handler(req, res) {
   }
 
   try {
-    console.log("HANDLER START");
-    let body = req.body;
-
-    if (typeof body === "string") {
-      try {
-        body = JSON.parse(body);
-      } catch (e) {
-        console.log("Invalid JSON body:", e.message);
-        return res.status(400).json({ error: "Invalid JSON body", raw: req.body });
-      }
-    }
-
-    console.log("REQ BODY:", typeof body === "object" ? Object.keys(body) : typeof body);
-
-    if (!body) {
+    // Read raw body (works even if automatic JSON parsing would fail)
+    const raw = await readRawBody(req, 50 * 1024 * 1024); // 50 MB limit
+    if (!raw) {
       return res.status(400).json({ error: "No body received" });
     }
 
-    if (!body.image) {
-      return res.status(400).json({ error: "Missing 'image' field", raw: body });
+    let body;
+    try {
+      body = JSON.parse(raw);
+    } catch (e) {
+      // Return a helpful error and a short snippet of the raw body for debugging
+      const snippet = raw.slice(0, 200);
+      return res.status(400).json({ error: "Invalid JSON", snippet });
     }
 
-    // Quick debug shortcut
+    if (!body || typeof body !== "object") {
+      return res.status(400).json({ error: "Invalid JSON structure", rawType: typeof body });
+    }
+
+    if (!body.image) {
+      return res.status(400).json({ error: "Missing 'image' field", raw: Object.keys(body) });
+    }
+
+    // Debug shortcut
     if (body.image === "test") {
       return res.status(200).json({ debug: true, message: "Test mode accepted" });
     }
@@ -54,10 +76,7 @@ export default async function handler(req, res) {
     if (!process.env.MODEL_URL) {
       return res.status(200).json({
         mock: true,
-        classification: {
-          label: "mocked_label",
-          confidence: 0.72
-        },
+        classification: { label: "mocked_label", confidence: 0.72 },
         note: "No MODEL_URL configured; this is a mock response for development"
       });
     }
