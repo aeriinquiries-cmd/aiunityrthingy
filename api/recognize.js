@@ -12,12 +12,26 @@ export default async function handler(req, res) {
   }
 
   try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    let body = req.body;
 
-    if (!body || !body.image) {
-      return res.status(400).json({ error: "Missing 'image' field" });
+    // If Vercel sends body as a string, parse it
+    if (typeof body === "string") {
+      try {
+        body = JSON.parse(body);
+      } catch (e) {
+        return res.status(400).json({ error: "Invalid JSON body", raw: req.body });
+      }
     }
 
+    if (!body) {
+      return res.status(400).json({ error: "No body received", raw: req.body });
+    }
+
+    if (!body.image) {
+      return res.status(400).json({ error: "Missing 'image' field", raw: body });
+    }
+
+    // Now call HuggingFace
     const response = await fetch(
       "https://api-inference.huggingface.co/models/nateraw/vit-fashion-classifier",
       {
