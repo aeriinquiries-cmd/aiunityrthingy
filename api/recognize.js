@@ -37,15 +37,16 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing 'image' field" });
     }
 
+    // Extract base64 bytes
     const base64 = body.image.replace(/^data:image\/\w+;base64,/, "");
     const bytes = Buffer.from(base64, "base64");
 
+    // Call HuggingFace vit-gpt2 captioning model
     const hfRes = await fetch(
-      "https://api-inference.huggingface.co/models/Salesforce/blip-image-captioning-base",
+      "https://api-inference.huggingface.co/models/nlpconnect/vit-gpt2-image-captioning",
       {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${process.env.HF_TOKEN}`,
           "Content-Type": "application/octet-stream"
         },
         body: bytes
