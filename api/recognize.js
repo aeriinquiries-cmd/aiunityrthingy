@@ -12,12 +12,10 @@ export default async function handler(req, res) {
 
     const API_KEY = process.env.GOOGLE_API_KEY;
 
-    // Extract base64 data only
-    const base64 = image.includes(",") ? image.split(",")[1] : image;
+    // Detect MIME type
+    const mime = image.includes("image/png") ? "image/png" : "image/jpeg";
+    const base64 = image.split(",")[1];
 
-    // -----------------------------
-    // Helper: Call Gemini model
-    // -----------------------------
     async function callGemini(model) {
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`,
@@ -28,8 +26,8 @@ export default async function handler(req, res) {
             contents: [
               {
                 parts: [
-                  { text: "Describe this clothing item in detail. Include type, color, style, and any notable features." },
-                  { inline_data: { mime_type: "image/png", data: base64 } }
+                  { text: "Describe this clothing item in detail." },
+                  { inline_data: { mime_type: mime, data: base64 } }
                 ]
               }
             ]
@@ -37,51 +35,31 @@ export default async function handler(req, res) {
         }
       );
 
-      return response;
-    }
+      const text = await response.text();
 
-    // -----------------------------
-    // Retry logic (3 attempts)
-    // -----------------------------
-    async function tryModel(model) {
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        const res = await callGemini(model);
-        const text = await res.text();
-
-        // Rate limit
-        if (res.status === 429) {
-          if (attempt === 3) return { error: "Rate limited" };
-          await new Promise(r => setTimeout(r, 500 * attempt));
-          continue;
-        }
-
-        // HTML error
-        if (text.startsWith("<")) {
-          return { error: "HTML error", details: text };
-        }
-
-        try {
-          const data = JSON.parse(text);
-          return { data };
-        } catch {
-          return { error: "Invalid JSON", details: text };
-        }
+      // If Google returns HTML or empty
+      if (!text || text.startsWith("<")) {
+        return { error: "Google returned HTML or empty response", details: text };
       }
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        return { error: "Invalid JSON from Google", details: text };
+      }
+
+      return { data };
     }
 
-    // -----------------------------
-    // Primary model: Gemini 2.5 Flash
-    // -----------------------------
-    let result = await tryModel("gemini-2.5-flash");
+    // Try primary model
+    let result = await callGemini("gemini-2.5-flash");
 
-    // -----------------------------
-    // Fallback model: Gemini 1.5 Flash
-    // -----------------------------
+    // Fallback
     if (result.error) {
-      result = await tryModel("gemini-1.5-flash");
+      result = await callGemini("gemini-1.5-flash");
     }
 
-    // If still error
     if (result.error) {
       return res.status(502).json({
         error: "AI model failed",
@@ -89,37 +67,13 @@ export default async function handler(req, res) {
       });
     }
 
-    // -----------------------------
-    // Extract caption text
-    // -----------------------------
     const caption =
       result.data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "unknown";
+      "NO_CAPTION";
 
-    // -----------------------------
-    // Clothing parsing
-    // -----------------------------
-    function parseClothing(text) {
-      const lower = text.toLowerCase();
-
-      const types = ["shirt", "t-shirt", "hoodie", "jacket", "pants", "jeans", "shorts", "sweater", "dress", "skirt"];
-      const colors = ["black", "white", "red", "blue", "green", "yellow", "gray", "brown", "purple", "pink", "orange"];
-
-      const foundType = types.find(t => lower.includes(t)) || "unknown";
-      const foundColor = colors.find(c => lower.includes(c)) || "unknown";
-
-      return { type: foundType, color: foundColor };
-    }
-
-    const parsed = parseClothing(caption);
-
-    // -----------------------------
-    // Final response
-    // -----------------------------
     return res.status(200).json({
       caption,
-      clothing: parsed,
-      model_used: result.data?.model || "unknown"
+      raw: result.data
     });
 
   } catch (err) {
