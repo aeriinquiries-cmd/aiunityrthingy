@@ -41,24 +41,28 @@ export default async function handler(req, res) {
     const base64 = body.image.replace(/^data:image\/\w+;base64,/, "");
     const bytes = Buffer.from(base64, "base64");
 
-    // Call BLIP model
+    // Call BLIP with your HF token
     const hfRes = await fetch(
       "https://api-inference.huggingface.co/models/Salesforce/blip-image-captioning-base",
       {
         method: "POST",
         headers: {
+          "Authorization": `Bearer ${process.env.HF_TOKEN}`,
           "Content-Type": "application/octet-stream"
         },
         body: bytes
       }
     );
 
-    const json = await hfRes.json();
+    const text = await hfRes.text();
 
-    if (!hfRes.ok) {
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch {
       return res.status(502).json({
-        error: "HuggingFace error",
-        details: json
+        error: "Invalid response from HuggingFace",
+        details: text
       });
     }
 
