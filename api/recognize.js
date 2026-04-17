@@ -10,15 +10,18 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing image" });
     }
 
-    const puterRes = await fetch("https://api.puter.com/v2/ai/chat", {
+    const puterRes = await fetch("https://api.puter.com/v2/ai/invoke", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        messages: [
-          { role: "user", content: "Describe this image." }
-        ],
-        media: [image],
-        model: "openai/gpt-5.4-nano"
+        model: "openai/gpt-5.4-nano",
+        input: [
+          {
+            role: "user",
+            content: "Describe this image.",
+            media: [image]
+          }
+        ]
       })
     });
 
