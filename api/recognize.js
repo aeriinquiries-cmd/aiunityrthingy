@@ -66,6 +66,8 @@ export default async function handler(req, res) {
       });
     }
 
+    console.log("HF_TOKEN exists:", !!process.env.HF_TOKEN);
+
     const caption = json?.[0]?.generated_text || "unknown";
 
     return res.status(200).json({
