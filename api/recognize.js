@@ -31,7 +31,6 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing 'image' field", raw: body });
     }
 
-    // Now call HuggingFace
     const response = await fetch(
       "https://api-inference.huggingface.co/models/nateraw/vit-fashion-classifier",
       {
