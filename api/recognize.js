@@ -1,80 +1,31 @@
-export const config = {
-  api: {
-    bodyParser: false
-  }
-};
-
-async function readRawBody(req, limitBytes = 50 * 1024 * 1024) {
-  return await new Promise((resolve, reject) => {
-    let data = "";
-    let received = 0;
-
-    req.on("data", (chunk) => {
-      received += chunk.length;
-      if (received > limitBytes) {
-        reject(new Error("Request body too large"));
-        req.destroy();
-        return;
-      }
-      data += chunk.toString("utf8");
-    });
-
-    req.on("end", () => resolve(data));
-    req.on("error", (err) => reject(err));
-  });
-}
-
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "POST only" });
   }
 
   try {
-    const raw = await readRawBody(req);
-    const body = JSON.parse(raw);
+    const { image } = JSON.parse(req.body);
 
-    if (!body.image) {
-      return res.status(400).json({ error: "Missing 'image' field" });
+    if (!image) {
+      return res.status(400).json({ error: "Missing image" });
     }
 
-    // Extract base64 bytes
-    const base64 = body.image.replace(/^data:image\/\w+;base64,/, "");
-    const bytes = Buffer.from(base64, "base64");
-
-    // Call HuggingFace vit-gpt2 captioning model
-    const hfRes = await fetch(
-      "https://api-inference.huggingface.co/models/nlpconnect/vit-gpt2-image-captioning",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/octet-stream"
-        },
-        body: bytes
-      }
-    );
-
-    const text = await hfRes.text();
-
-    let json;
-    try {
-      json = JSON.parse(text);
-    } catch {
-      return res.status(502).json({
-        error: "Invalid response from HuggingFace",
-        details: text
-      });
-    }
-
-    const caption = json?.[0]?.generated_text || "unknown";
-
-    return res.status(200).json({
-      classification: { label: caption }
+    // Send to Puter AI
+    const puterRes = await fetch("https://api.puter.com/v2/ai/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: [
+          { role: "user", content: "Describe this image." }
+        ],
+        media: [image], // base64 or URL
+        model: "openai/gpt-5.4-nano"
+      })
     });
 
+    const data = await puterRes.json();
+    return res.status(200).json({ result: data });
   } catch (err) {
-    return res.status(500).json({
-      error: "Server error",
-      details: err.message
-    });
+    return res.status(500).json({ error: err.message });
   }
 }
