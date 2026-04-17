@@ -39,7 +39,6 @@ export default async function handler(req, res) {
 
     const base64 = body.image.replace(/^data:image\/\w+;base64,/, "");
 
-    // Call Puter AI Chat API with image
     const puterRes = await fetch("https://api.puter.com/v2/ai/chat", {
       method: "POST",
       headers: {
@@ -48,25 +47,30 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: "gpt-5.4-nano",
         messages: [
-          { role: "user", content: "What clothing item is in this image?" }
-        ],
-        media: [
-          `data:image/jpeg;base64,${base64}`
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "Identify the clothing item in this image." },
+              { type: "image", image: `data:image/jpeg;base64,${base64}` }
+            ]
+          }
         ]
       })
     });
 
-    const json = await puterRes.json();
+    const text = await puterRes.text();
 
-    if (!puterRes.ok) {
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch {
       return res.status(502).json({
-        error: "Puter error",
-        details: json
+        error: "Invalid response from Puter",
+        details: text
       });
     }
 
-    // Extract the model's answer
-    const answer = json?.choices?.[0]?.message?.content || "unknown";
+    const answer = json?.choices?.[0]?.message?.content?.[0]?.text || "unknown";
 
     return res.status(200).json({
       classification: { label: answer }
