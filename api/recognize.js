@@ -30,7 +30,7 @@ export default async function handler(req, res) {
 Return ONLY valid JSON describing the clothing item in the image.
 
 {
-  "clothingName": "<short descriptive name based ONLY on what is visible>",
+"clothingName": "<a short, creative name based on visible graphics, text, symbols, and style. Do NOT invent brands, but DO create a unique descriptive name, and only put the brand if you know that is for sure the brand>",
   "color": "<main color>",
   "keywords": ["<keyword1>", "<keyword2>", "..."],
   "brand": "<brand ONLY if visible, otherwise null>",
