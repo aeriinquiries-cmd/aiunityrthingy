@@ -40,7 +40,7 @@ Rules:
 - DO NOT invent a brand.
 - hoodieName must be based ONLY on visible text or graphics.
 - If no text is visible, use a simple descriptive name like "Black Graphic Hoodie".
-- Respond with JSON ONLY. No explanation. No extra text.`
+- Respond with JSON ONLY. No explanation. No code block.`
                   },
                   {
                     inline_data: {
@@ -66,10 +66,12 @@ Rules:
       raw = await callGemini("gemini-1.5-flash");
     }
 
-    // Try to parse JSON directly
+    // Extract JSON from inside ```json ... ```
+    const match = raw.match(/\{[\s\S]*?\}/);
+
     let parsed;
     try {
-      parsed = JSON.parse(raw);
+      parsed = match ? JSON.parse(match[0]) : null;
     } catch {
       parsed = null;
     }
