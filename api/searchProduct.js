@@ -34,7 +34,7 @@ export default async function handler(req, res) {
             {
               parts: [
                 {
-                  text: `Rewrite this into a concise product search query. Return ONLY the query, no explanation:\n\n"${caption}"`
+                  text: `Rewrite this into a concise product search query. Return ONLY the query:\n\n"${caption}"`
                 }
               ]
             }
@@ -51,37 +51,28 @@ export default async function handler(req, res) {
     //
     // 2) CLEAN GEMINI OUTPUT
     //
-
-    // Remove markdown (**bold**, etc)
     query = query.replace(/\*/g, "");
-
-    // Remove parentheses content
     query = query.replace(/\(.*?\)/g, "");
-
-    // Remove "Here are..." or similar intros
     query = query.replace(/Here.*?:/gi, "");
-
-    // Remove dashes
     query = query.replace(/-/g, " ");
 
-    // Split into lines
     let lines = query
       .split("\n")
       .map((l) => l.trim())
       .filter((l) => l.length > 0);
 
-    // Pick the best line (prefer one containing "sp5der")
     let cleanQuery =
       lines.find((l) => l.toLowerCase().includes("sp5der")) || lines[0];
 
-    // Final cleanup
     cleanQuery = cleanQuery.replace(/\s+/g, " ").trim();
 
     //
-    // 3) Bing Web Search
+    // 3) ADVANCED BING QUERY (forces product results)
     //
+    const advancedQuery = `${cleanQuery} (site:stockx.com OR site:farfetch.com OR site:grailed.com OR site:amazon.com OR site:ebay.com)`;
+
     const bingUrl = `https://api.bing.microsoft.com/v7.0/search?q=${encodeURIComponent(
-      cleanQuery
+      advancedQuery
     )}&mkt=en-US`;
 
     const bingResp = await fetch(bingUrl, {
