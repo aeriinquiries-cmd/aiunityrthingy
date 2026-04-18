@@ -33,25 +33,28 @@ export default async function handler(req, res) {
     const { image } = req.body || {};
 
     if (!image) {
-      console.log("❌ Missing image in body");
       await logToDiscord("Missing Image", req.body);
       return res.status(400).json({ error: "Missing image" });
     }
 
-    console.log("📏 Base64 length:", image.length);
     await logToDiscord("Received Image", { base64Length: image.length });
 
-    const API_KEY = process.env.GEMINI_API_KEY;
-
     // -----------------------------
-    // PROMPT
+    // PUTER AI CALL
     // -----------------------------
-    const PROMPT = `
+    const payload = {
+      model: "vision",
+      input: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: `
 You are a clothing recognition AI.
 
-ALWAYS return JSON. If unsure, make your best guess.
+Return JSON ONLY in this format:
 
-FORMAT:
 {
   "clothingName": "...",
   "color": "...",
@@ -61,62 +64,35 @@ FORMAT:
   "subtype": "..."
 }
 
-RULES:
-- If the brand is unclear, return null.
-- If the item is simple (plain shirt, plain pants), return a simple descriptive name.
-- NEVER return an empty string.
+Rules:
+- If brand is unclear, return null.
+- If color is unclear, guess.
+- If category is unclear, guess.
 - NEVER return markdown.
+- NEVER return commentary.
 - ALWAYS return JSON.
-`;
-
-    // -----------------------------
-    // GEMINI CALL
-    // -----------------------------
-    async function callGemini() {
-      const payload = {
-        contents: [
-          {
-            parts: [
-              { text: PROMPT },
-              {
-                inline_data: {
-                  mime_type: "image/jpeg",
-                  data: image
-                }
-              }
-            ]
-          }
-        ]
-      };
-
-      console.log("🤖 Calling Gemini: gemini-1.5-flash");
-      await logToDiscord("Calling Gemini", { model: "gemini-1.5-flash" });
-
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
+`
+            },
+            {
+              type: "input_image",
+              image_url: `data:image/jpeg;base64,${image}`
+            }
+          ]
         }
-      );
+      ]
+    };
 
-      console.log("📥 Gemini status:", response.status);
+    const response = await fetch("https://api.puter.com/v2/ai/invoke", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
 
-      const json = await response.json();
-      await logToDiscord("Gemini Raw Response", json);
+    const json = await response.json();
+    await logToDiscord("Puter Raw Response", json);
 
-      return json;
-    }
-
-    // -----------------------------
-    // CALL MODEL
-    // -----------------------------
-    const raw = await callGemini();
-
-    const text = raw?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    console.log("📄 Gemini text:", text);
-    await logToDiscord("Gemini Text Output", { text });
+    const text = json.output_text || "";
+    await logToDiscord("Puter Text Output", { text });
 
     // -----------------------------
     // JSON EXTRACTION
@@ -133,11 +109,7 @@ RULES:
 
     const parsed = extractJSON(text);
 
-    // -----------------------------
-    // FINAL FALLBACK
-    // -----------------------------
     if (!parsed) {
-      console.log("❌ Parsing failed — returning debug");
       await logToDiscord("Parsing Failed", { rawResponse: text });
 
       return res.status(200).json({
@@ -151,13 +123,11 @@ RULES:
       });
     }
 
-    console.log("✅ Final parsed JSON:", parsed);
     await logToDiscord("Final Parsed JSON", parsed);
 
     return res.status(200).json(parsed);
 
   } catch (err) {
-    console.log("💥 SERVER ERROR:", err);
     await logToDiscord("Server Error", { error: err.message });
     return res.status(500).json({ error: err.message });
   }
