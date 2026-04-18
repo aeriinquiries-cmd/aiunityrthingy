@@ -40,17 +40,14 @@ export default async function handler(req, res) {
     await logToDiscord("Received Image", { base64Length: image.length });
 
     // -----------------------------
-    // PUTER AI CALL
+    // REPLICATE CALL
     // -----------------------------
+    const replicateKey = process.env.REPLICATE_API_KEY;
+
     const payload = {
-      model: "vision",
-      input: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "input_text",
-              text: `
+      version: "llava-1.6",
+      input: {
+        prompt: `
 You are a clothing recognition AI.
 
 Return JSON ONLY in this format:
@@ -71,28 +68,26 @@ Rules:
 - NEVER return markdown.
 - NEVER return commentary.
 - ALWAYS return JSON.
-`
-            },
-            {
-              type: "input_image",
-              image_url: `data:image/jpeg;base64,${image}`
-            }
-          ]
-        }
-      ]
+`,
+        image: `data:image/jpeg;base64,${image}`
+      }
     };
 
-    const response = await fetch("https://api.puter.com/v2/ai/invoke", {
+    const response = await fetch("https://api.replicate.com/v1/predictions", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Authorization": `Token ${replicateKey}`,
+        "Content-Type": "application/json"
+      },
       body: JSON.stringify(payload)
     });
 
-    const json = await response.json();
-    await logToDiscord("Puter Raw Response", json);
+    const prediction = await response.json();
+    await logToDiscord("Replicate Raw Response", prediction);
 
-    const text = json.output_text || "";
-    await logToDiscord("Puter Text Output", { text });
+    // Replicate returns output in prediction.output
+    const text = prediction.output?.join("") || "";
+    await logToDiscord("Replicate Text Output", { text });
 
     // -----------------------------
     // JSON EXTRACTION
