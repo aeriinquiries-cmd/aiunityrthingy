@@ -49,22 +49,42 @@ export default async function handler(req, res) {
       geminiJson?.candidates?.[0]?.content?.parts?.[0]?.text || caption;
 
     //
-    // 2) CLEAN GEMINI OUTPUT
+    // 2) CLEAN GEMINI OUTPUT (NEW FIXED VERSION)
     //
+
+    // Normalize curly quotes → straight quotes
+    query = query.replace(/[“”]/g, '"');
+
+    // Remove markdown, parentheses, punctuation
     query = query.replace(/\*/g, "");
     query = query.replace(/\(.*?\)/g, "");
-    query = query.replace(/Here.*?:/gi, "");
-    query = query.replace(/-/g, " ");
+    query = query.replace(/[^a-zA-Z0-9\s]/g, " ");
 
-    let lines = query
-      .split("\n")
-      .map((l) => l.trim())
-      .filter((l) => l.length > 0);
+    // Lowercase for keyword extraction
+    const lower = query.toLowerCase();
 
-    let cleanQuery =
-      lines.find((l) => l.toLowerCase().includes("sp5der")) || lines[0];
+    // Extract keywords from the caption
+    let keywords = [];
 
-    cleanQuery = cleanQuery.replace(/\s+/g, " ").trim();
+    if (lower.includes("sp5der") || lower.includes("spider"))
+      keywords.push("sp5der");
+
+    if (lower.includes("hoodie"))
+      keywords.push("hoodie");
+
+    if (lower.includes("black"))
+      keywords.push("black");
+
+    if (lower.includes("star"))
+      keywords.push("stars");
+
+    // Fallback if Gemini gives garbage
+    if (keywords.length === 0) {
+      keywords = ["sp5der", "hoodie", "black"];
+    }
+
+    // Final cleaned query
+    let cleanQuery = keywords.join(" ").trim();
 
     //
     // 3) ADVANCED BING QUERY (forces product results)
