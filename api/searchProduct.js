@@ -42,9 +42,11 @@ export default async function handler(req, res) {
     );
 
     const geminiJson = await geminiResp.json();
-    const query =
-      geminiJson?.candidates?.[0]?.content?.parts?.[0]?.text || caption;
+let query =
+  geminiJson?.candidates?.[0]?.content?.parts?.[0]?.text || caption;
 
+// Remove markdown formatting like **bold**
+query = query.replace(/\*/g, "").trim();
     // 2) Bing Web Search
     const bingUrl = `https://api.bing.microsoft.com/v7.0/search?q=${encodeURIComponent(
       query
