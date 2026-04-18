@@ -12,7 +12,7 @@ export default async function handler(req, res) {
 
     const API_KEY = process.env.GEMINI_API_KEY;
 
-    // Flutter sends raw base64, so we assume JPEG
+    // Flutter sends raw base64 (no prefix)
     const mime = "image/jpeg";
     const base64 = image;
 
@@ -26,7 +26,23 @@ export default async function handler(req, res) {
             contents: [
               {
                 parts: [
-                  { text: "Describe this clothing item in detail." },
+                  {
+                    text: `Identify this hoodie and return ONLY JSON:
+
+{
+  "product": "<exact hoodie name or closest match>",
+  "color": "<main color>",
+  "graphics": "<graphics>",
+  "text": "<visible text>",
+  "symbols": "<symbols>"
+}
+
+Rules:
+- JSON only.
+- No paragraphs.
+- No markdown.
+- No explanation.`
+                  },
                   { inline_data: { mime_type: mime, data: base64 } }
                 ]
               }
@@ -51,7 +67,7 @@ export default async function handler(req, res) {
       return { data };
     }
 
-    // Try primary model
+    // Primary model
     let result = await callGemini("gemini-2.5-flash");
 
     // Fallback
@@ -66,14 +82,18 @@ export default async function handler(req, res) {
       });
     }
 
-    const caption =
-      result.data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "NO_CAPTION";
+    // Extract JSON text from Gemini
+    const rawText =
+      result.data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
 
-    return res.status(200).json({
-      caption,
-      raw: result.data
-    });
+    let parsed;
+    try {
+      parsed = JSON.parse(rawText);
+    } catch {
+      parsed = { product: "Unknown Hoodie", color: "unknown" };
+    }
+
+    return res.status(200).json(parsed);
 
   } catch (err) {
     return res.status(500).json({ error: err.message });
