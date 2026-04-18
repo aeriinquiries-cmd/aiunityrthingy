@@ -27,24 +27,29 @@ export default async function handler(req, res) {
                 parts: [
                   {
                     text: `
-Return ONLY valid JSON describing the clothing item in the image.
+RETURN ONLY VALID JSON. 
+NO text before or after. 
+NO markdown. 
+NO commentary. 
+NO backticks. 
+JSON OBJECT ONLY.
 
 {
-  "clothingName": "<Generate a confident, realistic product-style name for this item. If the design strongly resembles a known streetwear brand (such as SP5DER, Chrome Hearts, Essentials, Bape, Vlone, etc.), infer the most likely brand and include it in the name. Use visible graphics, text, layout, symbols, and style cues to determine the most likely product name.>",
+  "clothingName": "<Generate a confident, realistic product-style name. If the design strongly resembles a known streetwear brand (SP5DER, Chrome Hearts, Essentials, Bape, Vlone, etc.), infer the most likely brand and include it in the name.>",
   "color": "<main fabric color>",
   "keywords": ["<keyword1>", "<keyword2>", "..."],
-  "brand": "<If the item clearly matches a known brand's style or signature design, return that brand. Otherwise null.>",
+  "brand": "<If the item clearly matches a known brand's signature style, return that brand. Otherwise null.>",
   "category": "<top | bottom | shoes | outerwear | accessory | dress>",
   "subtype": "<hoodie | t-shirt | jeans | joggers | sneakers | boots | jacket | etc>"
 }
 
 Rules:
-- You ARE allowed to infer the brand if the design strongly matches a known brand's signature style.
+- You ARE allowed to infer the brand if the design strongly matches a known brand's style.
 - You ARE allowed to generate a realistic product-style name (e.g., “SP5DER Pink Nevermind the Spider Hoodie”).
 - Do NOT output generic descriptive names unless absolutely necessary.
 - Use visible graphics, text, symbols, layout, and style to determine the most likely brand.
 - Color must be the literal visible fabric color.
-- JSON only. No markdown. No explanation.
+- JSON ONLY.
                     `
                   },
                   {
@@ -73,9 +78,18 @@ Rules:
 
     const text = raw?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
+    // ⭐ Extract ONLY the JSON block safely
     let parsed;
     try {
-      parsed = JSON.parse(text);
+      const jsonStart = text.indexOf("{");
+      const jsonEnd = text.lastIndexOf("}");
+
+      if (jsonStart !== -1 && jsonEnd !== -1) {
+        const clean = text.substring(jsonStart, jsonEnd + 1);
+        parsed = JSON.parse(clean);
+      } else {
+        parsed = null;
+      }
     } catch {
       parsed = null;
     }
