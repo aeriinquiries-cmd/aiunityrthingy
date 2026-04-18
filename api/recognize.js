@@ -12,6 +12,7 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Parse multipart image upload
     const base64Image = await new Promise((resolve, reject) => {
       const busboy = Busboy({ headers: req.headers });
       let fileBuffer = Buffer.alloc(0);
