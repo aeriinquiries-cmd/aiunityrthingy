@@ -26,14 +26,11 @@ export default async function handler(req, res) {
               {
                 parts: [
                   {
-                    text: `Analyze the hoodie in the image and return ONLY JSON:
+                    text: `Analyze the clothing item in the image and return ONLY JSON:
 
 {
   "hoodieName": "<short name based ONLY on visible text or graphics>",
   "color": "<main color>",
-  "graphics": "<graphics or artwork>",
-  "text": "<visible text>",
-  "symbols": "<symbols or shapes>",
   "keywords": "<5-10 search keywords based ONLY on what you see>",
   "brand": "<brand ONLY if clearly visible, otherwise null>"
 }
@@ -95,11 +92,8 @@ Rules:
       parsed = JSON.parse(rawText);
     } catch {
       parsed = {
-        hoodieName: "Unknown Hoodie",
+        hoodieName: "Unknown Item",
         color: "unknown",
-        graphics: "unknown",
-        text: "unknown",
-        symbols: "unknown",
         keywords: "",
         brand: null
       };
