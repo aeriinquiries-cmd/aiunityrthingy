@@ -26,8 +26,8 @@ export default async function handler(req, res) {
             contents: [
               {
                 parts: [
-{
-  text: `Analyze the hoodie in the image and return ONLY JSON:
+                  {
+                    text: `Analyze the hoodie in the image and return ONLY JSON:
 
 {
   "color": "<main color>",
@@ -43,9 +43,13 @@ Rules:
 - DO NOT invent a hoodie model.
 - ONLY describe what is visually present.
 - JSON only. No explanation.`
-}
                   },
-                  { inline_data: { mime_type: mime, data: base64 } }
+                  {
+                    inline_data: {
+                      mime_type: mime,
+                      data: base64
+                    }
+                  }
                 ]
               }
             ]
@@ -92,7 +96,13 @@ Rules:
     try {
       parsed = JSON.parse(rawText);
     } catch {
-      parsed = { product: "Unknown Hoodie", color: "unknown" };
+      parsed = {
+        color: "unknown",
+        graphics: "unknown",
+        text: "unknown",
+        symbols: "unknown",
+        keywords: ""
+      };
     }
 
     return res.status(200).json(parsed);
