@@ -22,7 +22,7 @@ export default async function handler(req, res) {
     const BING_KEY = process.env.BING_SUBSCRIPTION_KEY;
 
     //
-    // 1) Identify the exact product name (STRICT JSON)
+    // 1) Identify product name (STRICT ONE-LINE)
     //
     const identifyResp = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
@@ -34,14 +34,8 @@ export default async function handler(req, res) {
             {
               parts: [
                 {
-                  text: `You MUST respond ONLY in JSON.
-
-Return:
-{
-  "product": "<short product name>"
-}
-
-Identify the exact hoodie model from this description:
+                  text: `Return ONLY the product name for this hoodie.
+One short line. No explanation.
 
 "${caption}"`
                 }
@@ -53,18 +47,14 @@ Identify the exact hoodie model from this description:
     );
 
     const identifyJson = await identifyResp.json();
-    let productBlock =
-      identifyJson?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+    let productName =
+      identifyJson?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    let productName;
-    try {
-      productName = JSON.parse(productBlock).product;
-    } catch {
-      productName = "sp5der hoodie black";
-    }
+    productName = productName.split("\n")[0].trim();
+    if (productName.length < 3) productName = "sp5der hoodie black";
 
     //
-    // 2) Extract attributes (STRICT JSON)
+    // 2) Extract attributes (STRICT ONE-LINE)
     //
     const attrResp = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
@@ -76,17 +66,8 @@ Identify the exact hoodie model from this description:
             {
               parts: [
                 {
-                  text: `You MUST respond ONLY in JSON.
-
-Return:
-{
-  "color": "...",
-  "text": "...",
-  "graphics": "...",
-  "symbols": "..."
-}
-
-Extract the hoodie attributes from this:
+                  text: `List the key attributes of this hoodie in ONE LINE.
+Format: color | text | graphics | symbols
 
 "${caption}"`
                 }
@@ -98,20 +79,18 @@ Extract the hoodie attributes from this:
     );
 
     const attrJson = await attrResp.json();
-    let attributesBlock =
-      attrJson?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+    let attrLine =
+      attrJson?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    let attributes;
-    try {
-      attributes = JSON.parse(attributesBlock);
-    } catch {
-      attributes = {};
-    }
+    attrLine = attrLine.split("\n")[0].trim();
 
-    const expectedColor = (attributes.color || "").toLowerCase();
-    const expectedText = (attributes.text || "").toLowerCase();
-    const expectedGraphics = (attributes.graphics || "").toLowerCase();
-    const expectedSymbols = (attributes.symbols || "").toLowerCase();
+    // Parse attributes manually
+    const parts = attrLine.split("|").map((p) => p.trim().toLowerCase());
+
+    const expectedColor = parts[0] || "black";
+    const expectedText = parts[1] || "sp5der";
+    const expectedGraphics = parts[2] || "web";
+    const expectedSymbols = parts[3] || "stars";
 
     //
     // 3) Search Bing using ONLY the product name
@@ -134,23 +113,12 @@ Extract the hoodie attributes from this:
       .filter((p) => {
         const text = `${p.name} ${p.snippet}`.toLowerCase();
 
-        const colorMatch = expectedColor
-          ? text.includes(expectedColor)
-          : true;
-
-        const textMatch = expectedText
-          ? text.includes("sp5der") || text.includes("spider")
-          : true;
-
-        const graphicsMatch = expectedGraphics
-          ? text.includes("web") || text.includes("spiderweb")
-          : true;
-
-        const starsMatch = expectedSymbols
-          ? text.includes("star")
-          : true;
-
-        return colorMatch && textMatch && graphicsMatch && starsMatch;
+        return (
+          text.includes(expectedColor) &&
+          text.includes("sp5der") &&
+          text.includes("web") &&
+          text.includes("star")
+        );
       })
       .slice(0, 8)
       .map((p) => ({
@@ -162,7 +130,12 @@ Extract the hoodie attributes from this:
 
     return res.status(200).json({
       query: productName,
-      attributes,
+      attributes: {
+        color: expectedColor,
+        text: expectedText,
+        graphics: expectedGraphics,
+        symbols: expectedSymbols
+      },
       matches
     });
   } catch (err) {
