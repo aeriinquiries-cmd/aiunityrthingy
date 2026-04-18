@@ -26,7 +26,9 @@ export default async function handler(req, res) {
               {
                 parts: [
                   {
-                    text: `Analyze the clothing item in the image and return ONLY JSON:
+                    text: `Analyze the clothing item in the image.
+
+Describe what you see, then at the END of your response output JSON in this format:
 
 {
   "hoodieName": "<short name based ONLY on visible text or graphics>",
@@ -36,11 +38,11 @@ export default async function handler(req, res) {
 }
 
 Rules:
-- DO NOT guess the product name.
-- DO NOT invent a brand.
+- Do NOT guess the product name.
+- Do NOT invent a brand.
 - hoodieName must be based ONLY on visible text or graphics.
 - If no text is visible, use a simple descriptive name like "Black Graphic Hoodie".
-- JSON only. No explanation.`
+- The JSON must be valid and appear at the END of your response.`
                   },
                   {
                     inline_data: {
@@ -56,41 +58,35 @@ Rules:
       );
 
       const text = await response.text();
-
-      if (!text || text.startsWith("<")) {
-        return { error: "Google returned HTML or empty response", details: text };
-      }
-
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        return { error: "Invalid JSON from Google", details: text };
-      }
-
-      return { data };
+      return text;
     }
 
-    let result = await callGemini("gemini-2.5-flash");
+    // Try primary model
+    let raw = await callGemini("gemini-2.5-flash");
 
-    if (result.error) {
-      result = await callGemini("gemini-1.5-flash");
+    // Fallback model
+    if (!raw || raw.startsWith("<")) {
+      raw = await callGemini("gemini-1.5-flash");
     }
 
-    if (result.error) {
+    if (!raw) {
       return res.status(502).json({
         error: "AI model failed",
-        details: result
+        details: raw
       });
     }
 
-    const rawText =
-      result.data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+    // Extract JSON from Gemini output
+    const match = raw.match(/\{[\s\S]*\}/);
 
     let parsed;
     try {
-      parsed = JSON.parse(rawText);
+      parsed = match ? JSON.parse(match[0]) : null;
     } catch {
+      parsed = null;
+    }
+
+    if (!parsed) {
       parsed = {
         hoodieName: "Unknown Item",
         color: "unknown",
