@@ -5,9 +5,6 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "POST only" });
   }
 
-  // -----------------------------
-  // DISCORD LOGGER
-  // -----------------------------
   async function logToDiscord(label, data) {
     try {
       const webhook = process.env.DISCORD_WEBHOOK;
@@ -24,9 +21,7 @@ export default async function handler(req, res) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: message })
       });
-    } catch (e) {
-      console.log("❌ Discord logging failed:", e.message);
-    }
+    } catch {}
   }
 
   try {
@@ -39,9 +34,6 @@ export default async function handler(req, res) {
 
     await logToDiscord("Received Image", { base64Length: image.length });
 
-    // -----------------------------
-    // GROQ CALL
-    // -----------------------------
     const groqKey = process.env.GROQ_API_KEY;
 
     const payload = {
@@ -49,7 +41,10 @@ export default async function handler(req, res) {
       messages: [
         {
           role: "user",
-          content: `
+          content: [
+            {
+              type: "input_text",
+              text: `
 You are a clothing recognition AI.
 
 Return JSON ONLY in this format:
@@ -70,11 +65,15 @@ Rules:
 - NEVER return markdown.
 - NEVER return commentary.
 - ALWAYS return JSON.
-`,
-        },
+`
+            },
+            {
+              type: "input_image",
+              image_url: `data:image/jpeg;base64,${image}`
+            }
+          ]
+        }
       ],
-      // Groq expects images in this array
-      images: [`data:image/jpeg;base64,${image}`],
       temperature: 0.2
     };
 
@@ -93,16 +92,11 @@ Rules:
     const text = json?.choices?.[0]?.message?.content || "";
     await logToDiscord("Groq Text Output", { text });
 
-    // -----------------------------
-    // JSON EXTRACTION
-    // -----------------------------
     function extractJSON(str) {
       try {
         const match = str.match(/\{[\s\S]*\}/);
         if (match) return JSON.parse(match[0]);
-      } catch (e) {
-        console.log("❌ JSON parse error:", e.message);
-      }
+      } catch {}
       return null;
     }
 
