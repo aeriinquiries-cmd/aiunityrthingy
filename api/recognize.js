@@ -12,7 +12,6 @@ export default async function handler(req, res) {
 
     const API_KEY = process.env.GEMINI_API_KEY;
 
-    // Flutter sends raw base64 (no prefix)
     const mime = "image/jpeg";
     const base64 = image;
 
@@ -27,21 +26,23 @@ export default async function handler(req, res) {
               {
                 parts: [
                   {
-text: `Analyze the hoodie in the image and return ONLY JSON:
+                    text: `Analyze the hoodie in the image and return ONLY JSON:
 
 {
+  "hoodieName": "<short name based ONLY on visible text or graphics>",
   "color": "<main color>",
   "graphics": "<graphics or artwork>",
   "text": "<visible text>",
   "symbols": "<symbols or shapes>",
   "keywords": "<5-10 search keywords based ONLY on what you see>",
-  "brand": "<brand ONLY if clearly visible in the text or logo, otherwise null>"
+  "brand": "<brand ONLY if clearly visible, otherwise null>"
 }
 
 Rules:
 - DO NOT guess the product name.
 - DO NOT invent a brand.
-- ONLY use brand if it is clearly visible.
+- hoodieName must be based ONLY on visible text or graphics.
+- If no text is visible, use a simple descriptive name like "Black Graphic Hoodie".
 - JSON only. No explanation.`
                   },
                   {
@@ -73,10 +74,8 @@ Rules:
       return { data };
     }
 
-    // Primary model
     let result = await callGemini("gemini-2.5-flash");
 
-    // Fallback
     if (result.error) {
       result = await callGemini("gemini-1.5-flash");
     }
@@ -88,7 +87,6 @@ Rules:
       });
     }
 
-    // Extract JSON text from Gemini
     const rawText =
       result.data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
 
@@ -96,14 +94,15 @@ Rules:
     try {
       parsed = JSON.parse(rawText);
     } catch {
-parsed = {
-  color: "unknown",
-  graphics: "unknown",
-  text: "unknown",
-  symbols: "unknown",
-  keywords: "",
-  brand: null
-};
+      parsed = {
+        hoodieName: "Unknown Hoodie",
+        color: "unknown",
+        graphics: "unknown",
+        text: "unknown",
+        symbols: "unknown",
+        keywords: "",
+        brand: null
+      };
     }
 
     return res.status(200).json(parsed);
