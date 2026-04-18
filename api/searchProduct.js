@@ -22,7 +22,7 @@ export default async function handler(req, res) {
     const BING_KEY = process.env.BING_SUBSCRIPTION_KEY;
 
     //
-    // 1) Ask Gemini to identify the exact product name
+    // 1) Identify the exact product name (STRICT JSON)
     //
     const identifyResp = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
@@ -34,8 +34,14 @@ export default async function handler(req, res) {
             {
               parts: [
                 {
-                  text: `Identify the exact product name for this hoodie. 
-Return ONLY the product name, nothing else:
+                  text: `You MUST respond ONLY in JSON.
+
+Return:
+{
+  "product": "<short product name>"
+}
+
+Identify the exact hoodie model from this description:
 
 "${caption}"`
                 }
@@ -47,13 +53,18 @@ Return ONLY the product name, nothing else:
     );
 
     const identifyJson = await identifyResp.json();
-    let productName =
-      identifyJson?.candidates?.[0]?.content?.parts?.[0]?.text || caption;
+    let productBlock =
+      identifyJson?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
 
-    productName = productName.replace(/[“”]/g, '"').trim();
+    let productName;
+    try {
+      productName = JSON.parse(productBlock).product;
+    } catch {
+      productName = "sp5der hoodie black";
+    }
 
     //
-    // 2) Ask Gemini to extract key attributes (color, graphics, text)
+    // 2) Extract attributes (STRICT JSON)
     //
     const attrResp = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
@@ -65,8 +76,17 @@ Return ONLY the product name, nothing else:
             {
               parts: [
                 {
-                  text: `Extract the key attributes of this hoodie. 
-Return JSON with fields: color, text, graphics, symbols.
+                  text: `You MUST respond ONLY in JSON.
+
+Return:
+{
+  "color": "...",
+  "text": "...",
+  "graphics": "...",
+  "symbols": "..."
+}
+
+Extract the hoodie attributes from this:
 
 "${caption}"`
                 }
@@ -78,12 +98,12 @@ Return JSON with fields: color, text, graphics, symbols.
     );
 
     const attrJson = await attrResp.json();
-    let attributesText =
+    let attributesBlock =
       attrJson?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
 
     let attributes;
     try {
-      attributes = JSON.parse(attributesText);
+      attributes = JSON.parse(attributesBlock);
     } catch {
       attributes = {};
     }
