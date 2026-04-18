@@ -10,11 +10,11 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing image" });
     }
 
-    const API_KEY = process.env.GOOGLE_API_KEY;
+    const API_KEY = process.env.GEMINI_API_KEY;
 
-    // Detect MIME type
-    const mime = image.includes("image/png") ? "image/png" : "image/jpeg";
-    const base64 = image.split(",")[1];
+    // Flutter sends raw base64, so we assume JPEG
+    const mime = "image/jpeg";
+    const base64 = image;
 
     async function callGemini(model) {
       const response = await fetch(
@@ -37,7 +37,6 @@ export default async function handler(req, res) {
 
       const text = await response.text();
 
-      // If Google returns HTML or empty
       if (!text || text.startsWith("<")) {
         return { error: "Google returned HTML or empty response", details: text };
       }
