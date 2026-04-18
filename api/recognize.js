@@ -44,6 +44,8 @@ Rules:
 - category must be one of: top, bottom, shoes, outerwear, accessory, dress.
 - subtype must be specific (e.g., jeans, joggers, cargo pants, hoodie, t-shirt).
 - If no brand is visible, return null.
+- Color must be the literal visible color of the fabric.
+- Ignore lighting reflections or warm indoor lighting when determining color.
 - JSON only. No markdown. No explanation.
 `
                   },
