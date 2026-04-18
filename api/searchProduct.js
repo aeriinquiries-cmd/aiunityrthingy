@@ -11,27 +11,39 @@ export default async function handler(req, res) {
     }
 
     const data = JSON.parse(body);
-    const { product, color, graphics, text, symbols } = data;
 
-    if (!product) {
-      return res.status(400).json({ error: "Missing product name" });
+    const color = data.color || "";
+    const graphics = data.graphics || "";
+    const text = data.text || "";
+    const symbols = data.symbols || "";
+    const keywords = data.keywords || "";
+
+    if (!keywords) {
+      return res.status(400).json({ error: "Missing keywords" });
     }
 
-    // Generate search queries
+    // Build a strong search phrase
+    const searchPhrase = `${color} hoodie ${graphics} ${text} ${symbols} ${keywords}`
+      .replace(/\s+/g, " ")
+      .trim();
+
+    // Generate search URLs
     const queries = [
-      `https://www.google.com/search?q=${encodeURIComponent(product)}`,
-      `https://www.google.com/search?q=${encodeURIComponent(product + " stockx")}`,
-      `https://www.google.com/search?q=${encodeURIComponent(product + " grailed")}`,
-      `https://www.google.com/search?q=${encodeURIComponent(product + " farfetch")}`,
-      `https://www.google.com/search?q=${encodeURIComponent(product + " ebay")}`
+      `https://www.google.com/search?q=${encodeURIComponent(searchPhrase)}`,
+      `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(searchPhrase)}`,
+      `https://www.google.com/search?q=${encodeURIComponent(searchPhrase + " stockx")}`,
+      `https://www.google.com/search?q=${encodeURIComponent(searchPhrase + " grailed")}`,
+      `https://www.google.com/search?q=${encodeURIComponent(searchPhrase + " farfetch")}`,
+      `https://www.google.com/search?q=${encodeURIComponent(searchPhrase + " ebay")}`
     ];
 
     return res.status(200).json({
-      product,
       color,
       graphics,
       text,
       symbols,
+      keywords,
+      searchPhrase,
       queries
     });
 
