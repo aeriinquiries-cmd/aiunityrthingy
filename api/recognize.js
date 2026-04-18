@@ -44,9 +44,9 @@ export default async function handler(req, res) {
     const API_KEY = process.env.GEMINI_API_KEY;
 
     // -----------------------------
-    // PROMPTS
+    // PROMPT
     // -----------------------------
-    const MAIN_PROMPT = `
+    const PROMPT = `
 You are a clothing recognition AI.
 
 ALWAYS return JSON. If unsure, make your best guess.
@@ -69,31 +69,15 @@ RULES:
 - ALWAYS return JSON.
 `;
 
-    const SIMPLE_PROMPT = `
-Return JSON describing the clothing item.
-
-FORMAT:
-{
-  "clothingName": "...",
-  "color": "...",
-  "keywords": [],
-  "brand": null,
-  "category": "...",
-  "subtype": "..."
-}
-`;
-
     // -----------------------------
-    // GEMINI CALL FUNCTION
+    // GEMINI CALL
     // -----------------------------
-    async function callGemini(model, simple = false) {
-      const prompt = simple ? SIMPLE_PROMPT : MAIN_PROMPT;
-
+    async function callGemini() {
       const payload = {
         contents: [
           {
             parts: [
-              { text: prompt },
+              { text: PROMPT },
               {
                 inline_data: {
                   mime_type: "image/jpeg",
@@ -105,11 +89,11 @@ FORMAT:
         ]
       };
 
-      console.log("🤖 Calling Gemini:", model, "simple:", simple);
-      await logToDiscord("Calling Gemini", { model, simple });
+      console.log("🤖 Calling Gemini: gemini-1.5-flash-latest");
+      await logToDiscord("Calling Gemini", { model: "gemini-1.5-flash-latest" });
 
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -126,16 +110,11 @@ FORMAT:
     }
 
     // -----------------------------
-    // FIRST ATTEMPT
+    // CALL MODEL
     // -----------------------------
-    let raw = await callGemini("gemini-2.5-flash");
+    const raw = await callGemini();
 
-    if (!raw || !raw.candidates) {
-      console.log("⚠️ Fallback to 1.5 Flash");
-      raw = await callGemini("gemini-1.5-flash");
-    }
-
-    let text = raw?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const text = raw?.candidates?.[0]?.content?.parts?.[0]?.text || "";
     console.log("📄 Gemini text:", text);
     await logToDiscord("Gemini Text Output", { text });
 
@@ -152,21 +131,7 @@ FORMAT:
       return null;
     }
 
-    let parsed = extractJSON(text);
-
-    // -----------------------------
-    // SECOND ATTEMPT (SIMPLE PROMPT)
-    // -----------------------------
-    if (!parsed) {
-      console.log("⚠️ First attempt failed — retrying with simple prompt");
-
-      const raw2 = await callGemini("gemini-2.5-flash", true);
-      const text2 = raw2?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
-      await logToDiscord("Gemini Simple Text", { text2 });
-
-      parsed = extractJSON(text2);
-    }
+    const parsed = extractJSON(text);
 
     // -----------------------------
     // FINAL FALLBACK
