@@ -1,23 +1,26 @@
-export const config = {
-  api: {
-    bodyParser: true,
-  },
-};
-
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "POST only" });
   }
 
-  const { caption } = req.body || {};
-  if (!caption) {
-    return res.status(400).json({ error: "Missing caption" });
-  }
-
-  const GEMINI_KEY = process.env.GOOGLE_API_KEY;
-  const BING_KEY = process.env.BING_SUBSCRIPTION_KEY;
+  let body = "";
 
   try {
+    // Read raw request body
+    for await (const chunk of req) {
+      body += chunk;
+    }
+
+    const data = JSON.parse(body);
+    const caption = data.caption;
+
+    if (!caption) {
+      return res.status(400).json({ error: "Missing caption" });
+    }
+
+    const GEMINI_KEY = process.env.GOOGLE_API_KEY;
+    const BING_KEY = process.env.BING_SUBSCRIPTION_KEY;
+
     // 1) Rewrite caption using Gemini
     const geminiResp = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
