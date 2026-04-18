@@ -11,76 +11,27 @@ export default async function handler(req, res) {
     }
 
     const data = JSON.parse(body);
-    const caption = data.caption;
+    const { product, color, graphics, text, symbols } = data;
 
-    if (!caption) {
-      return res.status(400).json({ error: "Missing caption" });
+    if (!product) {
+      return res.status(400).json({ error: "Missing product name" });
     }
 
-    const GEMINI_KEY = process.env.GOOGLE_API_KEY;
-
-    //
-    // 1) Identify the product
-    //
-    const identifyResp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: `Identify this hoodie. Return JSON ONLY:
-
-{
-  "product": "<exact product name>",
-  "color": "<color>",
-  "graphics": "<graphics>",
-  "text": "<text>",
-  "symbols": "<symbols>"
-}
-
-Description:
-"${caption}"`
-                }
-              ]
-            }
-          ]
-        })
-      }
-    );
-
-    const identifyJson = await identifyResp.json();
-    let raw1 = identifyJson?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-
-    let productInfo;
-    try {
-      productInfo = JSON.parse(raw1);
-    } catch {
-      productInfo = {
-        product: "Sp5der Black Web Stars Hoodie",
-        color: "black",
-        graphics: "web",
-        text: "sp5der",
-        symbols: "stars"
-      };
-    }
-
-    //
-    // 2) Generate search queries instead of links
-    //
+    // Generate search queries
     const queries = [
-      `https://www.google.com/search?q=${encodeURIComponent(productInfo.product)}`,
-      `https://www.google.com/search?q=${encodeURIComponent(productInfo.product + " stockx")}`,
-      `https://www.google.com/search?q=${encodeURIComponent(productInfo.product + " grailed")}`,
-      `https://www.google.com/search?q=${encodeURIComponent(productInfo.product + " farfetch")}`,
-      `https://www.google.com/search?q=${encodeURIComponent(productInfo.product + " ebay")}`
+      `https://www.google.com/search?q=${encodeURIComponent(product)}`,
+      `https://www.google.com/search?q=${encodeURIComponent(product + " stockx")}`,
+      `https://www.google.com/search?q=${encodeURIComponent(product + " grailed")}`,
+      `https://www.google.com/search?q=${encodeURIComponent(product + " farfetch")}`,
+      `https://www.google.com/search?q=${encodeURIComponent(product + " ebay")}`
     ];
 
     return res.status(200).json({
-      ...productInfo,
+      product,
+      color,
+      graphics,
+      text,
+      symbols,
       queries
     });
 
