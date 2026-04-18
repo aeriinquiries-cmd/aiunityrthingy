@@ -39,7 +39,7 @@ export default async function handler(req, res) {
 
 Rules:
 - You ARE allowed to infer the brand if the design strongly matches a known brand's signature style.
-- You ARE allowed to generate a realistic product-style name (e.g., “SP5DER Pink Nevermind the Spider Hoodie”).
+- You ARE allowed to generate a realistic product-style name.
 - Do NOT output generic descriptive names unless absolutely necessary.
 - Use visible graphics, text, symbols, layout, and style to determine the most likely brand.
 - Color must be the literal visible fabric color.
