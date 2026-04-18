@@ -2,48 +2,98 @@ export default async function handler(req, res) {
   console.log("🔥 API HIT");
 
   if (req.method !== "POST") {
-    console.log("❌ Wrong method:", req.method);
     return res.status(405).json({ error: "POST only" });
   }
 
-  try {
-    console.log("📥 RAW BODY:", req.body);
+  // -----------------------------
+  // DISCORD LOGGER
+  // -----------------------------
+  async function logToDiscord(label, data) {
+    try {
+      const webhook = process.env.DISCORD_WEBHOOK;
+      if (!webhook) return;
 
+      const message =
+        `**${label}**\n` +
+        "```json\n" +
+        JSON.stringify(data, null, 2).slice(0, 1900) +
+        "\n```";
+
+      await fetch(webhook, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: message })
+      });
+    } catch (e) {
+      console.log("❌ Discord logging failed:", e.message);
+    }
+  }
+
+  try {
     const { image } = req.body || {};
 
     if (!image) {
-      console.log("❌ IMAGE MISSING IN BODY");
+      console.log("❌ Missing image in body");
+      await logToDiscord("Missing Image", req.body);
       return res.status(400).json({ error: "Missing image" });
     }
 
-    console.log("📏 BASE64 LENGTH:", image.length);
+    console.log("📏 Base64 length:", image.length);
+    await logToDiscord("Received Image", { base64Length: image.length });
 
     const API_KEY = process.env.GEMINI_API_KEY;
 
-    async function callGemini(model) {
-      console.log(`🤖 Calling Gemini model: ${model}`);
+    // -----------------------------
+    // PROMPTS
+    // -----------------------------
+    const MAIN_PROMPT = `
+You are a clothing recognition AI.
+
+ALWAYS return JSON. If unsure, make your best guess.
+
+FORMAT:
+{
+  "clothingName": "...",
+  "color": "...",
+  "keywords": ["...", "..."],
+  "brand": "... or null",
+  "category": "...",
+  "subtype": "..."
+}
+
+RULES:
+- If the brand is unclear, return null.
+- If the item is simple (plain shirt, plain pants), return a simple descriptive name.
+- NEVER return an empty string.
+- NEVER return markdown.
+- ALWAYS return JSON.
+`;
+
+    const SIMPLE_PROMPT = `
+Return JSON describing the clothing item.
+
+FORMAT:
+{
+  "clothingName": "...",
+  "color": "...",
+  "keywords": [],
+  "brand": null,
+  "category": "...",
+  "subtype": "..."
+}
+`;
+
+    // -----------------------------
+    // GEMINI CALL FUNCTION
+    // -----------------------------
+    async function callGemini(model, simple = false) {
+      const prompt = simple ? SIMPLE_PROMPT : MAIN_PROMPT;
 
       const payload = {
         contents: [
           {
             parts: [
-              {
-                text: `
-RETURN ONLY VALID JSON.
-NO markdown.
-NO commentary.
-JSON ONLY.
-
-{
-  "clothingName": "<name>",
-  "color": "<color>",
-  "keywords": ["k1","k2"],
-  "brand": "<brand or null>",
-  "category": "<top|bottom|shoes|outerwear|accessory|dress>",
-  "subtype": "<hoodie|pants|jeans|etc>"
-}
-                `
-              },
+              { text: prompt },
               {
                 inline_data: {
                   mime_type: "image/jpeg",
@@ -55,7 +105,8 @@ JSON ONLY.
         ]
       };
 
-      console.log("📤 SENDING TO GEMINI:", JSON.stringify(payload).slice(0, 200), "...");
+      console.log("🤖 Calling Gemini:", model, "simple:", simple);
+      await logToDiscord("Calling Gemini", { model, simple });
 
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`,
@@ -66,48 +117,64 @@ JSON ONLY.
         }
       );
 
-      console.log("📥 GEMINI STATUS:", response.status);
+      console.log("📥 Gemini status:", response.status);
 
       const json = await response.json();
-
-      console.log("📥 GEMINI RAW RESPONSE:", JSON.stringify(json).slice(0, 500));
+      await logToDiscord("Gemini Raw Response", json);
 
       return json;
     }
 
-    // Try Gemini 2.5 Flash first
+    // -----------------------------
+    // FIRST ATTEMPT
+    // -----------------------------
     let raw = await callGemini("gemini-2.5-flash");
 
-    // Fallback to 1.5 Flash if needed
     if (!raw || !raw.candidates) {
       console.log("⚠️ Fallback to 1.5 Flash");
       raw = await callGemini("gemini-1.5-flash");
     }
 
-    const text = raw?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    let text = raw?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    console.log("📄 Gemini text:", text);
+    await logToDiscord("Gemini Text Output", { text });
 
-    console.log("📄 GEMINI TEXT OUTPUT:", text);
-
-    // Try to extract JSON
-    let parsed = null;
-    try {
-      const start = text.indexOf("{");
-      const end = text.lastIndexOf("}");
-
-      if (start !== -1 && end !== -1) {
-        const jsonString = text.slice(start, end + 1);
-        console.log("📦 JSON STRING:", jsonString);
-        parsed = JSON.parse(jsonString);
-      } else {
-        console.log("❌ JSON BRACES NOT FOUND");
+    // -----------------------------
+    // JSON EXTRACTION
+    // -----------------------------
+    function extractJSON(str) {
+      try {
+        const match = str.match(/\{[\s\S]*\}/);
+        if (match) return JSON.parse(match[0]);
+      } catch (e) {
+        console.log("❌ JSON parse error:", e.message);
       }
-    } catch (e) {
-      console.log("❌ JSON PARSE ERROR:", e.message);
-      parsed = null;
+      return null;
     }
 
+    let parsed = extractJSON(text);
+
+    // -----------------------------
+    // SECOND ATTEMPT (SIMPLE PROMPT)
+    // -----------------------------
     if (!parsed) {
-      console.log("❌ PARSING FAILED — RETURNING DEBUG");
+      console.log("⚠️ First attempt failed — retrying with simple prompt");
+
+      const raw2 = await callGemini("gemini-2.5-flash", true);
+      const text2 = raw2?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+      await logToDiscord("Gemini Simple Text", { text2 });
+
+      parsed = extractJSON(text2);
+    }
+
+    // -----------------------------
+    // FINAL FALLBACK
+    // -----------------------------
+    if (!parsed) {
+      console.log("❌ Parsing failed — returning debug");
+      await logToDiscord("Parsing Failed", { rawResponse: text });
+
       return res.status(200).json({
         clothingName: "ParsingError",
         color: null,
@@ -119,12 +186,14 @@ JSON ONLY.
       });
     }
 
-    console.log("✅ FINAL PARSED JSON:", parsed);
+    console.log("✅ Final parsed JSON:", parsed);
+    await logToDiscord("Final Parsed JSON", parsed);
 
     return res.status(200).json(parsed);
 
   } catch (err) {
     console.log("💥 SERVER ERROR:", err);
+    await logToDiscord("Server Error", { error: err.message });
     return res.status(500).json({ error: err.message });
   }
 }
