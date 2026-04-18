@@ -26,21 +26,20 @@ export default async function handler(req, res) {
               {
                 parts: [
                   {
-                    text: `Analyze the clothing item in the image and return ONLY valid JSON:
+                    text: `Return ONLY valid JSON describing the clothing item:
 
 {
   "hoodieName": "<short name based ONLY on visible text or graphics>",
   "color": "<main color>",
-  "keywords": "<5-10 search keywords based ONLY on what you see>",
-  "brand": "<brand ONLY if clearly visible, otherwise null>"
+  "keywords": ["<keyword1>", "<keyword2>", "..."],
+  "brand": "<brand ONLY if visible, otherwise null>"
 }
 
 Rules:
-- DO NOT guess the product name.
-- DO NOT invent a brand.
-- hoodieName must be based ONLY on visible text or graphics.
-- If no text is visible, use a simple descriptive name like "Black Graphic Hoodie".
-- Respond with JSON ONLY. No explanation. No code block.`
+- No explanation.
+- No markdown.
+- No code block.
+- JSON only.`
                   },
                   {
                     inline_data: {
@@ -58,22 +57,29 @@ Rules:
       return await response.text();
     }
 
-    // Try primary model
     let raw = await callGemini("gemini-2.5-flash");
 
-    // Fallback
     if (!raw || raw.startsWith("<")) {
       raw = await callGemini("gemini-1.5-flash");
     }
 
-    // Extract JSON from inside ```json ... ```
-    const match = raw.match(/\{[\s\S]*?\}/);
+    // Remove code fences if present
+    raw = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
 
-    let parsed;
-    try {
-      parsed = match ? JSON.parse(match[0]) : null;
-    } catch {
-      parsed = null;
+    // Extract JSON using a robust pattern
+    const jsonStart = raw.indexOf("{");
+    const jsonEnd = raw.lastIndexOf("}");
+
+    let parsed = null;
+
+    if (jsonStart !== -1 && jsonEnd !== -1) {
+      const jsonString = raw.substring(jsonStart, jsonEnd + 1);
+
+      try {
+        parsed = JSON.parse(jsonString);
+      } catch (e) {
+        parsed = null;
+      }
     }
 
     if (!parsed) {
