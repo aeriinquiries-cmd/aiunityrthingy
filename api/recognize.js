@@ -26,22 +26,24 @@ export default async function handler(req, res) {
             contents: [
               {
                 parts: [
-                  {
-                    text: `Identify this hoodie and return ONLY JSON:
+{
+  text: `Analyze the hoodie in the image and return ONLY JSON:
 
 {
-  "product": "<exact hoodie name or closest match>",
   "color": "<main color>",
-  "graphics": "<graphics>",
+  "graphics": "<graphics or artwork>",
   "text": "<visible text>",
-  "symbols": "<symbols>"
+  "symbols": "<symbols or shapes>",
+  "keywords": "<5-10 search keywords based ONLY on what you see>"
 }
 
 Rules:
-- JSON only.
-- No paragraphs.
-- No markdown.
-- No explanation.`
+- DO NOT guess the product name.
+- DO NOT guess the brand.
+- DO NOT invent a hoodie model.
+- ONLY describe what is visually present.
+- JSON only. No explanation.`
+}
                   },
                   { inline_data: { mime_type: mime, data: base64 } }
                 ]
