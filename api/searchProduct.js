@@ -22,9 +22,9 @@ export default async function handler(req, res) {
     const BING_KEY = process.env.BING_SUBSCRIPTION_KEY;
 
     //
-    // 1) Rewrite caption using Gemini
+    // 1) Ask Gemini to identify the exact product name
     //
-    const geminiResp = await fetch(
+    const identifyResp = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
       {
         method: "POST",
@@ -34,7 +34,10 @@ export default async function handler(req, res) {
             {
               parts: [
                 {
-                  text: `Rewrite this into a concise product search query. Return ONLY the query:\n\n"${caption}"`
+                  text: `Identify the exact product name for this hoodie. 
+Return ONLY the product name, nothing else:
+
+"${caption}"`
                 }
               ]
             }
@@ -43,56 +46,58 @@ export default async function handler(req, res) {
       }
     );
 
-    const geminiJson = await geminiResp.json();
+    const identifyJson = await identifyResp.json();
+    let productName =
+      identifyJson?.candidates?.[0]?.content?.parts?.[0]?.text || caption;
 
-    let query =
-      geminiJson?.candidates?.[0]?.content?.parts?.[0]?.text || caption;
+    productName = productName.replace(/[“”]/g, '"').trim();
 
     //
-    // 2) CLEAN GEMINI OUTPUT (NEW FIXED VERSION)
+    // 2) Ask Gemini to extract key attributes (color, graphics, text)
     //
+    const attrResp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: `Extract the key attributes of this hoodie. 
+Return JSON with fields: color, text, graphics, symbols.
 
-    // Normalize curly quotes → straight quotes
-    query = query.replace(/[“”]/g, '"');
+"${caption}"`
+                }
+              ]
+            }
+          ]
+        })
+      }
+    );
 
-    // Remove markdown, parentheses, punctuation
-    query = query.replace(/\*/g, "");
-    query = query.replace(/\(.*?\)/g, "");
-    query = query.replace(/[^a-zA-Z0-9\s]/g, " ");
+    const attrJson = await attrResp.json();
+    let attributesText =
+      attrJson?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
 
-    // Lowercase for keyword extraction
-    const lower = query.toLowerCase();
-
-    // Extract keywords from the caption
-    let keywords = [];
-
-    if (lower.includes("sp5der") || lower.includes("spider"))
-      keywords.push("sp5der");
-
-    if (lower.includes("hoodie"))
-      keywords.push("hoodie");
-
-    if (lower.includes("black"))
-      keywords.push("black");
-
-    if (lower.includes("star"))
-      keywords.push("stars");
-
-    // Fallback if Gemini gives garbage
-    if (keywords.length === 0) {
-      keywords = ["sp5der", "hoodie", "black"];
+    let attributes;
+    try {
+      attributes = JSON.parse(attributesText);
+    } catch {
+      attributes = {};
     }
 
-    // Final cleaned query
-    let cleanQuery = keywords.join(" ").trim();
+    const expectedColor = (attributes.color || "").toLowerCase();
+    const expectedText = (attributes.text || "").toLowerCase();
+    const expectedGraphics = (attributes.graphics || "").toLowerCase();
+    const expectedSymbols = (attributes.symbols || "").toLowerCase();
 
     //
-    // 3) ADVANCED BING QUERY (forces product results)
+    // 3) Search Bing using ONLY the product name
     //
-    const advancedQuery = `${cleanQuery} (site:stockx.com OR site:farfetch.com OR site:grailed.com OR site:amazon.com OR site:ebay.com)`;
-
     const bingUrl = `https://api.bing.microsoft.com/v7.0/search?q=${encodeURIComponent(
-      advancedQuery
+      productName
     )}&mkt=en-US`;
 
     const bingResp = await fetch(bingUrl, {
@@ -100,21 +105,46 @@ export default async function handler(req, res) {
     });
 
     const bingJson = await bingResp.json();
-
     const pages = bingJson.webPages?.value || [];
 
-    const matches = pages.slice(0, 8).map((p) => ({
-      title: p.name || "",
-      snippet: p.snippet || "",
-      url: p.url || "",
-      confidence: /stockx|farfetch|stadiumgoods|grailed|ebay|amazon/i.test(
-        p.url
-      )
-        ? 0.9
-        : 0.5
-    }));
+    //
+    // 4) Filter results by color + design match
+    //
+    const matches = pages
+      .filter((p) => {
+        const text = `${p.name} ${p.snippet}`.toLowerCase();
 
-    return res.status(200).json({ query: cleanQuery, matches });
+        const colorMatch = expectedColor
+          ? text.includes(expectedColor)
+          : true;
+
+        const textMatch = expectedText
+          ? text.includes("sp5der") || text.includes("spider")
+          : true;
+
+        const graphicsMatch = expectedGraphics
+          ? text.includes("web") || text.includes("spiderweb")
+          : true;
+
+        const starsMatch = expectedSymbols
+          ? text.includes("star")
+          : true;
+
+        return colorMatch && textMatch && graphicsMatch && starsMatch;
+      })
+      .slice(0, 8)
+      .map((p) => ({
+        title: p.name || "",
+        snippet: p.snippet || "",
+        url: p.url || "",
+        confidence: 0.95
+      }));
+
+    return res.status(200).json({
+      query: productName,
+      attributes,
+      matches
+    });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
