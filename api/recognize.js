@@ -26,9 +26,7 @@ export default async function handler(req, res) {
               {
                 parts: [
                   {
-                    text: `Analyze the clothing item in the image.
-
-Describe what you see, then at the END of your response output JSON in this format:
+                    text: `Analyze the clothing item in the image and return ONLY valid JSON:
 
 {
   "hoodieName": "<short name based ONLY on visible text or graphics>",
@@ -38,11 +36,11 @@ Describe what you see, then at the END of your response output JSON in this form
 }
 
 Rules:
-- Do NOT guess the product name.
-- Do NOT invent a brand.
+- DO NOT guess the product name.
+- DO NOT invent a brand.
 - hoodieName must be based ONLY on visible text or graphics.
 - If no text is visible, use a simple descriptive name like "Black Graphic Hoodie".
-- The JSON must be valid and appear at the END of your response.`
+- Respond with JSON ONLY. No explanation. No extra text.`
                   },
                   {
                     inline_data: {
@@ -57,31 +55,21 @@ Rules:
         }
       );
 
-      const text = await response.text();
-      return text;
+      return await response.text();
     }
 
     // Try primary model
     let raw = await callGemini("gemini-2.5-flash");
 
-    // Fallback model
+    // Fallback
     if (!raw || raw.startsWith("<")) {
       raw = await callGemini("gemini-1.5-flash");
     }
 
-    if (!raw) {
-      return res.status(502).json({
-        error: "AI model failed",
-        details: raw
-      });
-    }
-
-    // Extract JSON from Gemini output
-    const match = raw.match(/\{[\s\S]*\}/);
-
+    // Try to parse JSON directly
     let parsed;
     try {
-      parsed = match ? JSON.parse(match[0]) : null;
+      parsed = JSON.parse(raw);
     } catch {
       parsed = null;
     }
