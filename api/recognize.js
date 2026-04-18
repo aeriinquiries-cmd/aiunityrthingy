@@ -12,9 +12,6 @@ export default async function handler(req, res) {
 
     const API_KEY = process.env.GEMINI_API_KEY;
 
-    const mime = "image/jpeg";
-    const base64 = image;
-
     async function callGemini(model) {
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`,
@@ -27,11 +24,11 @@ export default async function handler(req, res) {
                 parts: [
                   {
                     text: `
-RETURN ONLY VALID JSON. 
-NO text before or after. 
-NO markdown. 
-NO commentary. 
-NO backticks. 
+RETURN ONLY VALID JSON.
+NO text before or after.
+NO markdown.
+NO commentary.
+NO backticks.
 JSON OBJECT ONLY.
 
 {
@@ -45,17 +42,16 @@ JSON OBJECT ONLY.
 
 Rules:
 - You ARE allowed to infer the brand if the design strongly matches a known brand's style.
-- You ARE allowed to generate a realistic product-style name (e.g., “SP5DER Pink Nevermind the Spider Hoodie”).
+- You ARE allowed to generate a realistic product-style name.
 - Do NOT output generic descriptive names unless absolutely necessary.
 - Use visible graphics, text, symbols, layout, and style to determine the most likely brand.
-- Color must be the literal visible fabric color.
 - JSON ONLY.
                     `
                   },
                   {
                     inline_data: {
-                      mime_type: mime,
-                      data: base64
+                      mime_type: "image/jpeg",
+                      data: image
                     }
                   }
                 ]
@@ -72,38 +68,37 @@ Rules:
     let raw = await callGemini("gemini-2.5-flash");
 
     // Fallback to 1.5 Flash if needed
-    if (!raw || raw.candidates == null) {
+    if (!raw || !raw.candidates) {
       raw = await callGemini("gemini-1.5-flash");
     }
 
     const text = raw?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    // ⭐ Extract ONLY the JSON block safely
-    let parsed;
+    // ⭐ Bulletproof JSON extraction
+    let parsed = null;
     try {
-      const jsonStart = text.indexOf("{");
-      const jsonEnd = text.lastIndexOf("}");
+      const start = text.indexOf("{");
+      const end = text.lastIndexOf("}");
 
-      if (jsonStart !== -1 && jsonEnd !== -1) {
-        const clean = text.substring(jsonStart, jsonEnd + 1);
-        parsed = JSON.parse(clean);
-      } else {
-        parsed = null;
+      if (start !== -1 && end !== -1) {
+        const jsonString = text.slice(start, end + 1);
+        parsed = JSON.parse(jsonString);
       }
-    } catch {
+    } catch (e) {
       parsed = null;
     }
 
-    // Fallback if parsing fails
+    // If parsing failed, return a structured error instead of "Unknown Item"
     if (!parsed) {
-      parsed = {
-        clothingName: "Unknown Item",
-        color: "unknown",
+      return res.status(200).json({
+        clothingName: "ParsingError",
+        color: null,
         keywords: [],
         brand: null,
-        category: "unknown",
-        subtype: "unknown",
-      };
+        category: null,
+        subtype: null,
+        rawResponse: text // ⭐ Helps us debug
+      });
     }
 
     return res.status(200).json(parsed);
