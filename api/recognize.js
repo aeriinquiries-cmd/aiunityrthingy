@@ -26,7 +26,8 @@ export default async function handler(req, res) {
               {
                 parts: [
                   {
-                    text: `Return ONLY valid JSON describing the clothing item:
+                    text: `
+Return ONLY valid JSON describing the clothing item in the image.
 
 {
   "clothingName": "<short descriptive name based ONLY on what is visible>",
@@ -37,12 +38,14 @@ export default async function handler(req, res) {
   "subtype": "<hoodie | t-shirt | jeans | joggers | shorts | sneakers | boots | coat | jacket | etc>"
 }
 
+Rules:
 - Identify the clothing item in the image.
 - clothingName must be a short descriptive name (e.g., "black jeans", "white sneakers").
 - category must be one of: top, bottom, shoes, outerwear, accessory, dress.
 - subtype must be specific (e.g., jeans, joggers, cargo pants, hoodie, t-shirt).
 - If no brand is visible, return null.
-- JSON only. No markdown. No explanation.`
+- JSON only. No markdown. No explanation.
+`
                   },
                   {
                     inline_data: {
@@ -60,15 +63,14 @@ export default async function handler(req, res) {
       return await response.json();
     }
 
-    // Try primary model
+    // Try Gemini 2.5 Flash first
     let raw = await callGemini("gemini-2.5-flash");
 
-    // Fallback
+    // Fallback to 1.5 Flash if needed
     if (!raw || raw.candidates == null) {
       raw = await callGemini("gemini-1.5-flash");
     }
 
-    // Extract the JSON from parts[0].text
     const text = raw?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
     let parsed;
@@ -78,12 +80,15 @@ export default async function handler(req, res) {
       parsed = null;
     }
 
+    // Fallback if parsing fails
     if (!parsed) {
       parsed = {
-        hoodieName: "Unknown Item",
+        clothingName: "Unknown Item",
         color: "unknown",
-        keywords: "",
-        brand: null
+        keywords: [],
+        brand: null,
+        category: "unknown",
+        subtype: "unknown",
       };
     }
 
