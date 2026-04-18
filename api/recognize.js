@@ -32,10 +32,16 @@ export default async function handler(req, res) {
   "hoodieName": "<short name based ONLY on visible text or graphics>",
   "color": "<main color>",
   "keywords": ["<keyword1>", "<keyword2>", "..."],
-  "brand": "<brand ONLY if visible, otherwise null>"
+  "brand": "<brand ONLY if visible, otherwise null>",
+  "category": "<top | bottom | shoes | outerwear | accessory | dress>",
+  "subtype": "<hoodie | t-shirt | jeans | shorts | sneakers | boots | coat | jacket | etc>"
 }
 
 Rules:
+- Determine category based ONLY on the clothing item in the image.
+- subtype must be a specific clothing type.
+- category must be one of: top, bottom, shoes, outerwear, accessory, dress.
+- DO NOT guess a brand if not visible.
 - No explanation.
 - No markdown.
 - No code block.
@@ -57,15 +63,12 @@ Rules:
       return await response.json();
     }
 
-    // Try primary model
     let raw = await callGemini("gemini-2.5-flash");
 
-    // Fallback
     if (!raw || raw.candidates == null) {
       raw = await callGemini("gemini-1.5-flash");
     }
 
-    // Extract the JSON from parts[0].text
     const text = raw?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
     let parsed;
@@ -79,8 +82,10 @@ Rules:
       parsed = {
         hoodieName: "Unknown Item",
         color: "unknown",
-        keywords: "",
-        brand: null
+        keywords: [],
+        brand: null,
+        category: "unknown",
+        subtype: "unknown",
       };
     }
 
