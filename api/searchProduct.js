@@ -6,7 +6,6 @@ export default async function handler(req, res) {
   let body = "";
 
   try {
-    // Read raw request body (Vercel)
     for await (const chunk of req) {
       body += chunk;
     }
@@ -21,7 +20,7 @@ export default async function handler(req, res) {
     const GEMINI_KEY = process.env.GOOGLE_API_KEY;
 
     //
-    // 1) Ask Gemini to identify the product
+    // 1) Identify the product
     //
     const identifyResp = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
@@ -33,7 +32,7 @@ export default async function handler(req, res) {
             {
               parts: [
                 {
-                  text: `Identify this hoodie and return JSON ONLY:
+                  text: `Identify this hoodie. Return JSON ONLY:
 
 {
   "product": "<exact product name>",
@@ -70,52 +69,21 @@ Description:
     }
 
     //
-    // 2) Ask Gemini for shopping links
+    // 2) Generate search queries instead of links
     //
-    const linksResp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: `Return JSON ONLY with places to buy this hoodie.
-Use known stores like StockX, Grailed, Farfetch, Amazon, eBay.
-
-Format:
-{
-  "links": [
-    {"store": "StockX", "url": "..."},
-    {"store": "Grailed", "url": "..."}
-  ]
-}
-
-Product: "${productInfo.product}"`
-                }
-              ]
-            }
-          ]
-        })
-      }
-    );
-
-    const linksJson = await linksResp.json();
-    let raw2 = linksJson?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-
-    let links;
-    try {
-      links = JSON.parse(raw2).links || [];
-    } catch {
-      links = [];
-    }
+    const queries = [
+      `https://www.google.com/search?q=${encodeURIComponent(productInfo.product)}`,
+      `https://www.google.com/search?q=${encodeURIComponent(productInfo.product + " stockx")}`,
+      `https://www.google.com/search?q=${encodeURIComponent(productInfo.product + " grailed")}`,
+      `https://www.google.com/search?q=${encodeURIComponent(productInfo.product + " farfetch")}`,
+      `https://www.google.com/search?q=${encodeURIComponent(productInfo.product + " ebay")}`
+    ];
 
     return res.status(200).json({
       ...productInfo,
-      links
+      queries
     });
+
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
