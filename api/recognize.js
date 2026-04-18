@@ -40,14 +40,16 @@ export default async function handler(req, res) {
     await logToDiscord("Received Image", { base64Length: image.length });
 
     // -----------------------------
-    // REPLICATE CALL
+    // GROQ CALL
     // -----------------------------
-    const replicateKey = process.env.REPLICATE_API_KEY;
+    const groqKey = process.env.GROQ_API_KEY;
 
     const payload = {
-      version: "llava-1.6",
-      input: {
-        prompt: `
+      model: "llava-v1.5-7b",
+      messages: [
+        {
+          role: "user",
+          content: `
 You are a clothing recognition AI.
 
 Return JSON ONLY in this format:
@@ -69,25 +71,27 @@ Rules:
 - NEVER return commentary.
 - ALWAYS return JSON.
 `,
-        image: `data:image/jpeg;base64,${image}`
-      }
+        },
+      ],
+      // Groq expects images in this array
+      images: [`data:image/jpeg;base64,${image}`],
+      temperature: 0.2
     };
 
-    const response = await fetch("https://api.replicate.com/v1/predictions", {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Token ${replicateKey}`,
+        "Authorization": `Bearer ${groqKey}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify(payload)
     });
 
-    const prediction = await response.json();
-    await logToDiscord("Replicate Raw Response", prediction);
+    const json = await response.json();
+    await logToDiscord("Groq Raw Response", json);
 
-    // Replicate returns output in prediction.output
-    const text = prediction.output?.join("") || "";
-    await logToDiscord("Replicate Text Output", { text });
+    const text = json?.choices?.[0]?.message?.content || "";
+    await logToDiscord("Groq Text Output", { text });
 
     // -----------------------------
     // JSON EXTRACTION
