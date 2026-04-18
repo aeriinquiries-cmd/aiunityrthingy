@@ -18,58 +18,104 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing caption" });
     }
 
-    const OPENAI_KEY = process.env.OPENAI_API_KEY;
+    const GEMINI_KEY = process.env.GOOGLE_API_KEY;
 
     //
-    // 1) Ask ChatGPT to identify the product
+    // 1) Ask Gemini to identify the product
     //
-    const chatResp = await fetch(
-      "https://api.openai.com/v1/chat/completions",
+    const identifyResp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${OPENAI_KEY}`
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [
+          contents: [
             {
-              role: "system",
-              content:
-                "You identify clothing products from descriptions. Respond in JSON only."
-            },
-            {
-              role: "user",
-              content: `Identify this hoodie. Return JSON with:
+              parts: [
+                {
+                  text: `Identify this hoodie and return JSON ONLY:
+
 {
   "product": "<exact product name>",
   "color": "<color>",
   "graphics": "<graphics>",
   "text": "<text>",
-  "symbols": "<symbols>",
-  "keywords": "<search keywords>"
+  "symbols": "<symbols>"
 }
 
 Description:
 "${caption}"`
+                }
+              ]
             }
           ]
         })
       }
     );
 
-    const chatJson = await chatResp.json();
-    let raw = chatJson?.choices?.[0]?.message?.content || "{}";
+    const identifyJson = await identifyResp.json();
+    let raw1 = identifyJson?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
 
-    let result;
+    let productInfo;
     try {
-      result = JSON.parse(raw);
+      productInfo = JSON.parse(raw1);
     } catch {
-      result = { product: "sp5der hoodie black" };
+      productInfo = {
+        product: "Sp5der Black Web Stars Hoodie",
+        color: "black",
+        graphics: "web",
+        text: "sp5der",
+        symbols: "stars"
+      };
     }
 
-    return res.status(200).json(result);
+    //
+    // 2) Ask Gemini for shopping links
+    //
+    const linksResp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: `Return JSON ONLY with places to buy this hoodie.
+Use known stores like StockX, Grailed, Farfetch, Amazon, eBay.
+
+Format:
+{
+  "links": [
+    {"store": "StockX", "url": "..."},
+    {"store": "Grailed", "url": "..."}
+  ]
+}
+
+Product: "${productInfo.product}"`
+                }
+              ]
+            }
+          ]
+        })
+      }
+    );
+
+    const linksJson = await linksResp.json();
+    let raw2 = linksJson?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+
+    let links;
+    try {
+      links = JSON.parse(raw2).links || [];
+    } catch {
+      links = [];
+    }
+
+    return res.status(200).json({
+      ...productInfo,
+      links
+    });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
