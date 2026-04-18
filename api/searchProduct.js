@@ -6,7 +6,7 @@ export default async function handler(req, res) {
   let body = "";
 
   try {
-    // Read raw request body
+    // Read raw request body (required on Vercel)
     for await (const chunk of req) {
       body += chunk;
     }
@@ -21,7 +21,9 @@ export default async function handler(req, res) {
     const GEMINI_KEY = process.env.GOOGLE_API_KEY;
     const BING_KEY = process.env.BING_SUBSCRIPTION_KEY;
 
+    //
     // 1) Rewrite caption using Gemini
+    //
     const geminiResp = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
       {
@@ -32,7 +34,7 @@ export default async function handler(req, res) {
             {
               parts: [
                 {
-                  text: `Rewrite this into a concise product search query: "${caption}"`
+                  text: `Rewrite this into a concise product search query. Return ONLY the query, no explanation:\n\n"${caption}"`
                 }
               ]
             }
@@ -42,14 +44,44 @@ export default async function handler(req, res) {
     );
 
     const geminiJson = await geminiResp.json();
-let query =
-  geminiJson?.candidates?.[0]?.content?.parts?.[0]?.text || caption;
 
-// Remove markdown formatting like **bold**
-query = query.replace(/\*/g, "").trim();
-    // 2) Bing Web Search
+    let query =
+      geminiJson?.candidates?.[0]?.content?.parts?.[0]?.text || caption;
+
+    //
+    // 2) CLEAN GEMINI OUTPUT
+    //
+
+    // Remove markdown (**bold**, etc)
+    query = query.replace(/\*/g, "");
+
+    // Remove parentheses content
+    query = query.replace(/\(.*?\)/g, "");
+
+    // Remove "Here are..." or similar intros
+    query = query.replace(/Here.*?:/gi, "");
+
+    // Remove dashes
+    query = query.replace(/-/g, " ");
+
+    // Split into lines
+    let lines = query
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+
+    // Pick the best line (prefer one containing "sp5der")
+    let cleanQuery =
+      lines.find((l) => l.toLowerCase().includes("sp5der")) || lines[0];
+
+    // Final cleanup
+    cleanQuery = cleanQuery.replace(/\s+/g, " ").trim();
+
+    //
+    // 3) Bing Web Search
+    //
     const bingUrl = `https://api.bing.microsoft.com/v7.0/search?q=${encodeURIComponent(
-      query
+      cleanQuery
     )}&mkt=en-US`;
 
     const bingResp = await fetch(bingUrl, {
@@ -71,7 +103,7 @@ query = query.replace(/\*/g, "").trim();
         : 0.5
     }));
 
-    return res.status(200).json({ query, matches });
+    return res.status(200).json({ query: cleanQuery, matches });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
