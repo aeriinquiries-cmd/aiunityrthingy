@@ -32,19 +32,19 @@ NO backticks.
 JSON OBJECT ONLY.
 
 {
-  "clothingName": "<Generate a confident, realistic product-style name. If the design strongly resembles a known streetwear brand (SP5DER, Chrome Hearts, Essentials, Bape, Vlone, etc.), infer the most likely brand and include it in the name.>",
+  "clothingName": "<If the item has distinctive graphics, text, symbols, or brand cues, generate a realistic product-style name. If the item is simple (plain pants, plain shirt, plain jeans, etc.), return a clean descriptive name like 'black cargo pants' or 'black joggers'.>",
   "color": "<main fabric color>",
   "keywords": ["<keyword1>", "<keyword2>", "..."],
   "brand": "<If the item clearly matches a known brand's signature style, return that brand. Otherwise null.>",
   "category": "<top | bottom | shoes | outerwear | accessory | dress>",
-  "subtype": "<hoodie | t-shirt | jeans | joggers | sneakers | boots | jacket | etc>"
+  "subtype": "<hoodie | t-shirt | jeans | joggers | cargo pants | shorts | sneakers | boots | jacket | etc>"
 }
 
 Rules:
-- You ARE allowed to infer the brand if the design strongly matches a known brand's style.
-- You ARE allowed to generate a realistic product-style name.
-- Do NOT output generic descriptive names unless absolutely necessary.
-- Use visible graphics, text, symbols, layout, and style to determine the most likely brand.
+- If the item has no graphics, text, or brand cues, DO NOT infer a brand. Use a simple descriptive name.
+- If the item has distinctive graphics or text, you ARE allowed to infer the brand.
+- Always return a valid JSON object.
+- Color must be the literal visible fabric color.
 - JSON ONLY.
                     `
                   },
@@ -88,7 +88,7 @@ Rules:
       parsed = null;
     }
 
-    // If parsing failed, return a structured error instead of "Unknown Item"
+    // If parsing failed, return structured debug info
     if (!parsed) {
       return res.status(200).json({
         clothingName: "ParsingError",
@@ -97,7 +97,7 @@ Rules:
         brand: null,
         category: null,
         subtype: null,
-        rawResponse: text // ⭐ Helps us debug
+        rawResponse: text
       });
     }
 
