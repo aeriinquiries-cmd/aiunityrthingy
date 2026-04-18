@@ -31,20 +31,26 @@ NO commentary.
 NO backticks.
 JSON OBJECT ONLY.
 
+You MUST ALWAYS return a JSON object describing the clothing item.
+If the item is simple (plain pants, plain shirt, plain jeans, etc.), 
+you MUST return a simple descriptive name like "black pants" or "black joggers".
+NEVER return an empty response.
+NEVER return null fields for clothingName, color, category, or subtype.
+
 {
-  "clothingName": "<If the item has distinctive graphics, text, symbols, or brand cues, generate a realistic product-style name. If the item is simple (plain pants, plain shirt, plain jeans, etc.), return a clean descriptive name like 'black cargo pants' or 'black joggers'.>",
-  "color": "<main fabric color>",
+  "clothingName": "<If the item has graphics or brand cues, generate a realistic product-style name. If the item is simple, return a descriptive name like 'black pants' or 'black joggers'.>",
+  "color": "<main fabric color. NEVER return null.>",
   "keywords": ["<keyword1>", "<keyword2>", "..."],
-  "brand": "<If the item clearly matches a known brand's signature style, return that brand. Otherwise null.>",
+  "brand": "<If the item clearly matches a known brand's style, return that brand. Otherwise null.>",
   "category": "<top | bottom | shoes | outerwear | accessory | dress>",
-  "subtype": "<hoodie | t-shirt | jeans | joggers | cargo pants | shorts | sneakers | boots | jacket | etc>"
+  "subtype": "<hoodie | t-shirt | jeans | joggers | cargo pants | shorts | sneakers | boots | jacket | pants>"
 }
 
 Rules:
-- If the item has no graphics, text, or brand cues, DO NOT infer a brand. Use a simple descriptive name.
-- If the item has distinctive graphics or text, you ARE allowed to infer the brand.
-- Always return a valid JSON object.
-- Color must be the literal visible fabric color.
+- If the item is plain, DO NOT infer a brand.
+- If the item has graphics or text, you MAY infer the brand.
+- ALWAYS return a valid JSON object.
+- NEVER return an empty response.
 - JSON ONLY.
                     `
                   },
