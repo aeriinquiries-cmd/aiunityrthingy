@@ -6,7 +6,7 @@ export default async function handler(req, res) {
   let body = "";
 
   try {
-    // Read raw request body (required on Vercel)
+    // Read raw request body (Vercel)
     for await (const chunk of req) {
       body += chunk;
     }
@@ -18,126 +18,58 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing caption" });
     }
 
-    const GEMINI_KEY = process.env.GOOGLE_API_KEY;
-    const BING_KEY = process.env.BING_SUBSCRIPTION_KEY;
+    const OPENAI_KEY = process.env.OPENAI_API_KEY;
 
     //
-    // 1) Identify product name (STRICT ONE-LINE)
+    // 1) Ask ChatGPT to identify the product
     //
-    const identifyResp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
+    const chatResp = await fetch(
+      "https://api.openai.com/v1/chat/completions",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${OPENAI_KEY}`
+        },
         body: JSON.stringify({
-          contents: [
+          model: "gpt-4o-mini",
+          messages: [
             {
-              parts: [
-                {
-                  text: `Return ONLY the product name for this hoodie.
-One short line. No explanation.
+              role: "system",
+              content:
+                "You identify clothing products from descriptions. Respond in JSON only."
+            },
+            {
+              role: "user",
+              content: `Identify this hoodie. Return JSON with:
+{
+  "product": "<exact product name>",
+  "color": "<color>",
+  "graphics": "<graphics>",
+  "text": "<text>",
+  "symbols": "<symbols>",
+  "keywords": "<search keywords>"
+}
 
+Description:
 "${caption}"`
-                }
-              ]
             }
           ]
         })
       }
     );
 
-    const identifyJson = await identifyResp.json();
-    let productName =
-      identifyJson?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const chatJson = await chatResp.json();
+    let raw = chatJson?.choices?.[0]?.message?.content || "{}";
 
-    productName = productName.split("\n")[0].trim();
-    if (productName.length < 3) productName = "sp5der hoodie black";
+    let result;
+    try {
+      result = JSON.parse(raw);
+    } catch {
+      result = { product: "sp5der hoodie black" };
+    }
 
-    //
-    // 2) Extract attributes (STRICT ONE-LINE)
-    //
-    const attrResp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: `List the key attributes of this hoodie in ONE LINE.
-Format: color | text | graphics | symbols
-
-"${caption}"`
-                }
-              ]
-            }
-          ]
-        })
-      }
-    );
-
-    const attrJson = await attrResp.json();
-    let attrLine =
-      attrJson?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
-    attrLine = attrLine.split("\n")[0].trim();
-
-    // Parse attributes manually
-    const parts = attrLine.split("|").map((p) => p.trim().toLowerCase());
-
-    const expectedColor = parts[0] || "black";
-    const expectedText = parts[1] || "sp5der";
-    const expectedGraphics = parts[2] || "web";
-    const expectedSymbols = parts[3] || "stars";
-
-    //
-    // 3) Search Bing using ONLY the product name
-    //
-    const bingUrl = `https://api.bing.microsoft.com/v7.0/search?q=${encodeURIComponent(
-      productName
-    )}&mkt=en-US`;
-
-    const bingResp = await fetch(bingUrl, {
-      headers: { "Ocp-Apim-Subscription-Key": BING_KEY }
-    });
-
-    const bingJson = await bingResp.json();
-    const pages = bingJson.webPages?.value || [];
-
-    //
-    // 4) Filter results by color + design match
-    //
-    const matches = pages
-      .filter((p) => {
-        const text = `${p.name} ${p.snippet}`.toLowerCase();
-
-        return (
-          text.includes(expectedColor) &&
-          text.includes("sp5der") &&
-          text.includes("web") &&
-          text.includes("star")
-        );
-      })
-      .slice(0, 8)
-      .map((p) => ({
-        title: p.name || "",
-        snippet: p.snippet || "",
-        url: p.url || "",
-        confidence: 0.95
-      }));
-
-    return res.status(200).json({
-      query: productName,
-      attributes: {
-        color: expectedColor,
-        text: expectedText,
-        graphics: expectedGraphics,
-        symbols: expectedSymbols
-      },
-      matches
-    });
+    return res.status(200).json(result);
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
