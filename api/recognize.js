@@ -5,6 +5,9 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "POST only" });
   }
 
+  // -----------------------------
+  // DISCORD LOGGER
+  // -----------------------------
   async function logToDiscord(label, data) {
     try {
       const webhook = process.env.DISCORD_WEBHOOK;
@@ -21,7 +24,9 @@ export default async function handler(req, res) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: message })
       });
-    } catch {}
+    } catch (e) {
+      console.log("❌ Discord logging failed:", e.message);
+    }
   }
 
   try {
@@ -35,7 +40,14 @@ export default async function handler(req, res) {
     await logToDiscord("Received Image", { base64Length: image.length });
 
     const groqKey = process.env.GROQ_API_KEY;
+    if (!groqKey) {
+      await logToDiscord("Missing GROQ_API_KEY", {});
+      return res.status(500).json({ error: "Missing GROQ_API_KEY" });
+    }
 
+    // -----------------------------
+    // GROQ VISION CALL (correct format)
+    // -----------------------------
     const payload = {
       model: "llava-v1.5-7b",
       messages: [
@@ -43,7 +55,7 @@ export default async function handler(req, res) {
           role: "user",
           content: [
             {
-              type: "input_text",
+              type: "text",
               text: `
 You are a clothing recognition AI.
 
@@ -68,8 +80,10 @@ Rules:
 `
             },
             {
-              type: "input_image",
-              image_url: `data:image/jpeg;base64,${image}`
+              type: "image_url",
+              image_url: {
+                url: `data:image/jpeg;base64,${image}`
+              }
             }
           ]
         }
@@ -77,14 +91,17 @@ Rules:
       temperature: 0.2
     };
 
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${groqKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
-    });
+    const response = await fetch(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${groqKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      }
+    );
 
     const json = await response.json();
     await logToDiscord("Groq Raw Response", json);
@@ -92,11 +109,16 @@ Rules:
     const text = json?.choices?.[0]?.message?.content || "";
     await logToDiscord("Groq Text Output", { text });
 
+    // -----------------------------
+    // JSON EXTRACTION
+    // -----------------------------
     function extractJSON(str) {
       try {
         const match = str.match(/\{[\s\S]*\}/);
         if (match) return JSON.parse(match[0]);
-      } catch {}
+      } catch (e) {
+        console.log("❌ JSON parse error:", e.message);
+      }
       return null;
     }
 
@@ -117,10 +139,9 @@ Rules:
     }
 
     await logToDiscord("Final Parsed JSON", parsed);
-
     return res.status(200).json(parsed);
-
   } catch (err) {
+    console.log("💥 SERVER ERROR:", err);
     await logToDiscord("Server Error", { error: err.message });
     return res.status(500).json({ error: err.message });
   }
