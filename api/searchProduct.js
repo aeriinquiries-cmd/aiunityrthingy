@@ -10,7 +10,7 @@ export default async function handler(req, res) {
   }
 
   const GEMINI_KEY = process.env.GOOGLE_API_KEY;
-  const BING_KEY = process.env.BING_SUBSCRIPTION_KEY;
+  const BING_KEY =  f8cdef31-a31e-4b4a-93e4-5f571e91255a
 
   try {
     // 1) Ask Gemini to rewrite caption into a clean product search query
