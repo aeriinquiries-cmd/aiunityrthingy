@@ -1,4 +1,3 @@
-// /api/searchProduct.js
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "POST only" });
@@ -10,10 +9,10 @@ export default async function handler(req, res) {
   }
 
   const GEMINI_KEY = process.env.GOOGLE_API_KEY;
-  const BING_KEY =  f8cdef31-a31e-4b4a-93e4-5f571e91255a
+  const BING_KEY = process.env.BING_SUBSCRIPTION_KEY;
 
   try {
-    // 1) Ask Gemini to rewrite caption into a clean product search query
+    // 1) Rewrite caption using Gemini
     const geminiResp = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
       {
@@ -24,7 +23,7 @@ export default async function handler(req, res) {
             {
               parts: [
                 {
-                  text: `Rewrite this into a concise product search query for finding the exact clothing item online: "${caption}"`
+                  text: `Rewrite this into a concise product search query: "${caption}"`
                 }
               ]
             }
@@ -35,10 +34,9 @@ export default async function handler(req, res) {
 
     const geminiJson = await geminiResp.json();
     const query =
-      geminiJson?.candidates?.[0]?.content?.parts?.[0]?.text ||
-      caption;
+      geminiJson?.candidates?.[0]?.content?.parts?.[0]?.text || caption;
 
-    // 2) Call Bing Web Search API
+    // 2) Bing Web Search
     const bingUrl = `https://api.bing.microsoft.com/v7.0/search?q=${encodeURIComponent(
       query
     )}&mkt=en-US`;
@@ -49,33 +47,20 @@ export default async function handler(req, res) {
 
     const bingJson = await bingResp.json();
 
-    // 3) Extract top product-like results
     const pages = bingJson.webPages?.value || [];
 
-    const matches = pages.slice(0, 8).map((p) => {
-      const title = p.name || "";
-      const snippet = p.snippet || "";
-      const url = p.url || "";
-
-      // crude confidence scoring
-      const confidence = /stockx|farfetch|stadiumgoods|grailed|ebay|amazon/i.test(
-        url
+    const matches = pages.slice(0, 8).map((p) => ({
+      title: p.name || "",
+      snippet: p.snippet || "",
+      url: p.url || "",
+      confidence: /stockx|farfetch|stadiumgoods|grailed|ebay|amazon/i.test(
+        p.url
       )
         ? 0.9
-        : 0.5;
+        : 0.5
+    }));
 
-      return {
-        title,
-        snippet,
-        url,
-        confidence
-      };
-    });
-
-    return res.status(200).json({
-      query,
-      matches
-    });
+    return res.status(200).json({ query, matches });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
