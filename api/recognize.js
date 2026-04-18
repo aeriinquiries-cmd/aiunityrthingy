@@ -26,10 +26,11 @@ export default async function handler(req, res) {
               {
                 parts: [
                   {
-                    text: `Return ONLY valid JSON describing the clothing item in the image.
+                    text: `
+Return ONLY valid JSON describing the clothing item in the image.
 
 {
-  "clothingName": "<Generate a confident, realistic product-style name for this item. If the design strongly resembles a known streetwear brand (such as SP5DER, Chrome Hearts, Essentials, Bape, etc.), infer the most likely brand and include it in the name. Use visible graphics, text, layout, symbols, and style cues to determine the most likely product name.>",
+  "clothingName": "<Generate a confident, realistic product-style name for this item. If the design strongly resembles a known streetwear brand (such as SP5DER, Chrome Hearts, Essentials, Bape, Vlone, etc.), infer the most likely brand and include it in the name. Use visible graphics, text, layout, symbols, and style cues to determine the most likely product name.>",
   "color": "<main fabric color>",
   "keywords": ["<keyword1>", "<keyword2>", "..."],
   "brand": "<If the item clearly matches a known brand's style or signature design, return that brand. Otherwise null.>",
@@ -39,11 +40,12 @@ export default async function handler(req, res) {
 
 Rules:
 - You ARE allowed to infer the brand if the design strongly matches a known brand's signature style.
-- You ARE allowed to generate a realistic product-style name.
+- You ARE allowed to generate a realistic product-style name (e.g., “SP5DER Pink Nevermind the Spider Hoodie”).
 - Do NOT output generic descriptive names unless absolutely necessary.
 - Use visible graphics, text, symbols, layout, and style to determine the most likely brand.
 - Color must be the literal visible fabric color.
-- JSON only. No markdown. No explanation.`
+- JSON only. No markdown. No explanation.
+                    `
                   },
                   {
                     inline_data: {
