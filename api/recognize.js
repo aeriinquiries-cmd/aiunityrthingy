@@ -26,28 +26,24 @@ export default async function handler(req, res) {
               {
                 parts: [
                   {
-                    text: `
-Return ONLY valid JSON describing the clothing item in the image.
+                    text: `Return ONLY valid JSON describing the clothing item in the image.
 
 {
-"clothingName": "<a short, creative name based on visible graphics, text, symbols, and style. Do NOT invent brands, but DO create a unique descriptive name, and only put the brand if you know that is for sure the brand>",
-  "color": "<main color>",
+  "clothingName": "<Generate a confident, realistic product-style name for this item. If the design strongly resembles a known streetwear brand (such as SP5DER, Chrome Hearts, Essentials, Bape, etc.), infer the most likely brand and include it in the name. Use visible graphics, text, layout, symbols, and style cues to determine the most likely product name.>",
+  "color": "<main fabric color>",
   "keywords": ["<keyword1>", "<keyword2>", "..."],
-  "brand": "<brand ONLY if visible, otherwise null>",
+  "brand": "<If the item clearly matches a known brand's style or signature design, return that brand. Otherwise null.>",
   "category": "<top | bottom | shoes | outerwear | accessory | dress>",
-  "subtype": "<hoodie | t-shirt | jeans | joggers | shorts | sneakers | boots | coat | jacket | etc>"
+  "subtype": "<hoodie | t-shirt | jeans | joggers | sneakers | boots | jacket | etc>"
 }
 
 Rules:
-- Identify the clothing item in the image.
-- clothingName must be a short descriptive name (e.g., "black jeans", "white sneakers").
-- category must be one of: top, bottom, shoes, outerwear, accessory, dress.
-- subtype must be specific (e.g., jeans, joggers, cargo pants, hoodie, t-shirt).
-- If no brand is visible, return null.
-- Color must be the literal visible color of the fabric.
-- Ignore lighting reflections or warm indoor lighting when determining color.
-- JSON only. No markdown. No explanation.
-`
+- You ARE allowed to infer the brand if the design strongly matches a known brand's signature style.
+- You ARE allowed to generate a realistic product-style name (e.g., “SP5DER Pink Nevermind the Spider Hoodie”).
+- Do NOT output generic descriptive names unless absolutely necessary.
+- Use visible graphics, text, symbols, layout, and style to determine the most likely brand.
+- Color must be the literal visible fabric color.
+- JSON only. No markdown. No explanation.`
                   },
                   {
                     inline_data: {
