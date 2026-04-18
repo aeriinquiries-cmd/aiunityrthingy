@@ -54,32 +54,25 @@ Rules:
         }
       );
 
-      return await response.text();
+      return await response.json();
     }
 
+    // Try primary model
     let raw = await callGemini("gemini-2.5-flash");
 
-    if (!raw || raw.startsWith("<")) {
+    // Fallback
+    if (!raw || raw.candidates == null) {
       raw = await callGemini("gemini-1.5-flash");
     }
 
-    // Remove code fences if present
-    raw = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
+    // Extract the JSON from parts[0].text
+    const text = raw?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    // Extract JSON using a robust pattern
-    const jsonStart = raw.indexOf("{");
-    const jsonEnd = raw.lastIndexOf("}");
-
-    let parsed = null;
-
-    if (jsonStart !== -1 && jsonEnd !== -1) {
-      const jsonString = raw.substring(jsonStart, jsonEnd + 1);
-
-      try {
-        parsed = JSON.parse(jsonString);
-      } catch (e) {
-        parsed = null;
-      }
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = null;
     }
 
     if (!parsed) {
