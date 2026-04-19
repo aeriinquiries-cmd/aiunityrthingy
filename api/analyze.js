@@ -24,7 +24,7 @@ export default async function handler(req) {
       });
     }
 
-    // 1. Download the image
+    // 1. Download the image from Catbox
     const imgRes = await fetch(imageUrl);
     const imgBuffer = await imgRes.arrayBuffer();
     const base64Image = Buffer.from(imgBuffer).toString("base64");
