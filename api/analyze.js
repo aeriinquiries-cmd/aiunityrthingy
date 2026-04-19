@@ -1,20 +1,31 @@
 // api/analyze.js
 
-import { Puter } from 'puter-js';
+export const config = {
+  runtime: "edge",
+};
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'POST only' });
-  }
-
+export default async function handler(req) {
   try {
-    const { imageUrl } = req.body;
-
-    if (!imageUrl) {
-      return res.status(400).json({ error: 'Missing imageUrl' });
+    if (req.method !== "POST") {
+      return new Response(JSON.stringify({ error: "POST only" }), {
+        status: 405,
+      });
     }
 
-    const puter = new Puter({ apiKey: process.env.PUTER_API_KEY });
+    const { imageUrl } = await req.json();
+
+    if (!imageUrl) {
+      return new Response(JSON.stringify({ error: "Missing imageUrl" }), {
+        status: 400,
+      });
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: "Missing GEMINI_API_KEY" }), {
+        status: 500,
+      });
+    }
 
     const prompt = `
 You are a clothing recognition AI. Analyze the image and return ONLY valid JSON with:
@@ -31,23 +42,43 @@ You are a clothing recognition AI. Analyze the image and return ONLY valid JSON 
 Be extremely accurate. No extra text.
 `;
 
-    const response = await puter.ai.chat(prompt, {
-      images: [imageUrl],
-      model: "google/gemma-3-12b-it"
-    });
+    const geminiRes = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" +
+        apiKey,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { text: prompt },
+                { image_url: imageUrl },
+              ],
+            },
+          ],
+        }),
+      }
+    );
+
+    const data = await geminiRes.json();
+
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
     // Extract JSON safely
-    const text = response.output_text;
-    const jsonStart = text.indexOf('{');
-    const jsonEnd = text.lastIndexOf('}');
-    const jsonString = text.substring(jsonStart, jsonEnd + 1);
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    const jsonString = text.substring(start, end + 1);
 
-    const data = JSON.parse(jsonString);
+    const parsed = JSON.parse(jsonString);
 
-    return res.status(200).json(data);
-
+    return new Response(JSON.stringify(parsed), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: err.message });
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 500,
+    });
   }
 }
