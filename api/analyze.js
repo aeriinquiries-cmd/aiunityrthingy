@@ -9,8 +9,12 @@ export default async function handler(req) {
   await discordLog("🔥 analyze.js invoked");
 
   try {
-    const body = await req.json();
-    await discordLog("📥 Incoming body: " + JSON.stringify(body));
+    // FIXED: Node.js runtime does NOT support req.json()
+    const raw = await req.text();
+    await discordLog("📥 Raw request body: " + raw);
+
+    const body = JSON.parse(raw);
+    await discordLog("📥 Parsed body: " + JSON.stringify(body));
 
     const { imageUrl, userBrand } = body;
 
@@ -37,7 +41,7 @@ export default async function handler(req) {
 
     const prompt = `
 You are an AI that extracts clothing attributes from an image.
-(… prompt unchanged …)
+(… your prompt unchanged …)
 `;
 
     await discordLog("🚀 Sending request to Gemini…");
