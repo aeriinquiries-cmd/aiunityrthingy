@@ -26,20 +26,11 @@ export default async function handler(req) {
       });
     }
 
-    const contentType = req.headers.get("content-type") || "";
-    if (!contentType.includes("multipart/form-data")) {
-      await log("Invalid content type: " + contentType);
-      return new Response(
-        JSON.stringify({ error: "Expected multipart/form-data" }),
-        { status: 400 }
-      );
-    }
-
     const form = await req.formData();
     const file = form.get("file");
 
     if (!file) {
-      await log("No file found in form-data");
+      await log("No file found");
       return new Response(JSON.stringify({ error: "Missing file" }), {
         status: 400,
       });
@@ -51,14 +42,13 @@ export default async function handler(req) {
     await log("File received, size: " + bytes.length);
 
     if (bytes.length < 500) {
-      await log("ERROR: File too small — likely corrupted");
+      await log("ERROR: File too small");
       return new Response(
         JSON.stringify({ error: "File too small or corrupted" }),
         { status: 400 }
       );
     }
 
-    // Upload to Vercel Blob
     const blob = await put(`thready-${Date.now()}.jpg`, bytes, {
       access: "public",
     });
