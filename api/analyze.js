@@ -24,10 +24,15 @@ export default async function handler(req) {
       });
     }
 
-    // 1. Download the image from Catbox
-    const imgRes = await fetch(imageUrl);
-    const imgBuffer = await imgRes.arrayBuffer();
-    const base64Image = Buffer.from(imgBuffer).toString("base64");
+const imgRes = await fetch(imageUrl);
+const imgBuffer = await imgRes.arrayBuffer();
+
+// Convert ArrayBuffer → base64 (Edge Runtime safe)
+const base64Image = btoa(
+  String.fromCharCode(...new Uint8Array(imgBuffer))
+);
+
+
 
     const prompt = `
 Return ONLY valid JSON. No markdown. No commentary. No backticks.
