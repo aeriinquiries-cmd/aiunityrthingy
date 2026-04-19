@@ -55,15 +55,49 @@ You are an AI that extracts clothing attributes from an image.
 
     await discordLog("🚀 Sending request to Gemini…");
 
-    const result = await model.generateContent([
-      {
-        inlineData: {
-          mimeType: "image/jpeg",
-          data: base64Image,
-        },
-      },
-      { text: prompt },
-    ]);
+const result = await model.generateContent([
+  {
+    inlineData: {
+      mimeType: "image/jpeg",
+      data: base64Image,
+    },
+  },
+  {
+    text: `
+You MUST return ONLY valid JSON. 
+No markdown. 
+No explanations. 
+No commentary. 
+No extra text. 
+No asterisks. 
+No bold text. 
+No lists. 
+No sentences. 
+ONLY return a JSON object.
+
+If you cannot determine a field, return an empty string.
+
+### REQUIRED JSON FORMAT:
+{
+  "clothingName": "",
+  "color": "",
+  "brand": "",
+  "category": "",
+  "subtype": "",
+  "keywords": []
+}
+
+### BRAND RULES:
+- If userBrand exists, treat it as the intended brand.
+- Only override if a different brand logo is clearly visible.
+- If no visible brand, ALWAYS return userBrand.
+
+### IMAGE ANALYSIS:
+Describe the clothing item and fill the JSON fields accordingly.
+`
+  }
+]);
+
 
     await discordLog("📨 Gemini raw response: " + JSON.stringify(result));
 
