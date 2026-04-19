@@ -1,5 +1,8 @@
 {
   "name": "unity-ai-backend",
   "version": "1.0.0",
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "@vercel/blob": "^0.7.0"
+  }
 }
