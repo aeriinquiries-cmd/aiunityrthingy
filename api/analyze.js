@@ -24,7 +24,7 @@ export default async function handler(req) {
       });
     }
 
-    // 1. Download the image from Catbox
+    // 1. Download the image
     const imgRes = await fetch(imageUrl);
     const imgBuffer = await imgRes.arrayBuffer();
     const base64Image = Buffer.from(imgBuffer).toString("base64");
@@ -70,7 +70,7 @@ Return ONLY valid JSON. No markdown. No commentary. No backticks.
     const data = await geminiRes.json();
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    // CLEAN THE OUTPUT
+    // CLEAN OUTPUT
     const cleaned = text
       .replace(/```json/gi, "")
       .replace(/```/g, "")
