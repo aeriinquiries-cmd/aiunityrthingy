@@ -77,7 +77,7 @@ Return ONLY valid JSON. No markdown. No commentary. No backticks.
     // 2. Send to Gemini
     await log("Sending to Gemini...");
 const geminiRes = await fetch(
-  "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=" +
+  "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=" +
     apiKey,
   {
     method: "POST",
