@@ -5,22 +5,31 @@ export const config = {
   runtime: "nodejs",
 };
 
-export default async function handler(req) {
+export default async function handler(req, res) {
   await discordLog("🔥 analyze.js invoked");
 
   try {
-    // FIXED: Node.js runtime does NOT support req.json()
-    const raw = await req.text();
+    // FIXED: Node.js serverless functions use req.on("data")
+    let raw = "";
+    req.on("data", chunk => {
+      raw += chunk;
+    });
+
+    const body = await new Promise(resolve => {
+      req.on("end", () => resolve(raw));
+    });
+
     await discordLog("📥 Raw request body: " + raw);
 
-    const body = JSON.parse(raw);
-    await discordLog("📥 Parsed body: " + JSON.stringify(body));
+    const parsed = JSON.parse(raw);
+    await discordLog("📥 Parsed body: " + JSON.stringify(parsed));
 
-    const { imageUrl, userBrand } = body;
+    const { imageUrl, userBrand } = parsed;
 
     if (!imageUrl) {
       await discordLog("❌ Missing imageUrl");
-      return new Response(JSON.stringify({ error: "Missing imageUrl" }), { status: 400 });
+      res.status(400).json({ error: "Missing imageUrl" });
+      return;
     }
 
     await discordLog("🌐 Downloading image: " + imageUrl);
@@ -70,10 +79,8 @@ You are an AI that extracts clothing attributes from an image.
       await discordLog("✅ Parsed JSON: " + JSON.stringify(json));
     } catch (parseErr) {
       await discordLog("❌ JSON parse error: " + parseErr.message);
-      return new Response(
-        JSON.stringify({ error: "JSON parse failed", raw: text }),
-        { status: 500 }
-      );
+      res.status(500).json({ error: "JSON parse failed", raw: text });
+      return;
     }
 
     if (userBrand && userBrand.trim() !== "") {
@@ -85,16 +92,10 @@ You are an AI that extracts clothing attributes from an image.
 
     await discordLog("🏁 Final JSON: " + JSON.stringify(json));
 
-    return new Response(JSON.stringify(json), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+    res.status(200).json(json);
 
   } catch (err) {
     await discordLog("💥 analyze.js crashed: " + err.message);
-    return new Response(
-      JSON.stringify({ error: "Analyze failed", details: err.message }),
-      { status: 500 }
-    );
+    res.status(500).json({ error: "Analyze failed", details: err.message });
   }
 }
