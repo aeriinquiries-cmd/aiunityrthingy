@@ -76,29 +76,30 @@ Return ONLY valid JSON. No markdown. No commentary. No backticks.
 
     // 2. Send to Gemini
     await log("Sending to Gemini...");
-    const geminiRes = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" +
-        apiKey,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
+const geminiRes = await fetch(
+  "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=" +
+    apiKey,
+  {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [
+        {
+          parts: [
+            { text: prompt },
             {
-              parts: [
-                { text: prompt },
-                {
-                  inline_data: {
-                    mime_type: "image/jpeg",
-                    data: base64Image,
-                  },
-                },
-              ],
+              inline_data: {
+                mime_type: "image/jpeg",
+                data: base64Image,
+              },
             },
           ],
-        }),
-      }
-    );
+        },
+      ],
+    }),
+  }
+);
+
 
     const data = await geminiRes.json();
     await log("Gemini raw: " + JSON.stringify(data));
