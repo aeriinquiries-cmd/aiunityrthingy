@@ -61,8 +61,21 @@ export default async function handler(req) {
     );
     await log("Base64 length: " + base64Image.length);
 
+    // Improved prompt for better pants/shoes detection
     const prompt = `
-Return ONLY valid JSON. No markdown. No commentary. No backticks.
+Analyze the clothing item in the image and return ONLY valid JSON.
+Do NOT guess a brand unless it is clearly visible.
+Be as specific as possible about the item type.
+
+Rules:
+- If it's pants, specify type (jeans, joggers, cargos, sweatpants, chinos, shorts, etc.)
+- If it's shoes, specify type (sneakers, boots, slides, loafers, etc.)
+- If it's a top, specify type (hoodie, tee, long sleeve, jacket, etc.)
+- Extract ANY visible text or logos.
+- Describe patterns, graphics, materials, and style.
+- Do NOT return markdown or commentary.
+
+Return JSON in this format:
 
 {
   "clothingName": "",
@@ -74,32 +87,31 @@ Return ONLY valid JSON. No markdown. No commentary. No backticks.
 }
 `;
 
-    // 2. Send to Gemini
+    // 2. Send to Gemini 2.5 Flash
     await log("Sending to Gemini...");
-const geminiRes = await fetch(
-  "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=" +
-    apiKey,
-  {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [
-            { text: prompt },
+    const geminiRes = await fetch(
+      "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=" +
+        apiKey,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
             {
-              inline_data: {
-                mime_type: "image/jpeg",
-                data: base64Image,
-              },
+              parts: [
+                { text: prompt },
+                {
+                  inline_data: {
+                    mime_type: "image/jpeg",
+                    data: base64Image,
+                  },
+                },
+              ],
             },
           ],
-        },
-      ],
-    }),
-  }
-);
-
+        }),
+      }
+    );
 
     const data = await geminiRes.json();
     await log("Gemini raw: " + JSON.stringify(data));
