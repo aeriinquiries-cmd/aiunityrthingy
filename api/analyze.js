@@ -24,6 +24,11 @@ export default async function handler(req) {
       });
     }
 
+    // 1. Download the image from Catbox
+    const imgRes = await fetch(imageUrl);
+    const imgBuffer = await imgRes.arrayBuffer();
+    const base64Image = Buffer.from(imgBuffer).toString("base64");
+
     const prompt = `
 Return ONLY valid JSON. No markdown. No commentary. No backticks.
 
@@ -37,6 +42,7 @@ Return ONLY valid JSON. No markdown. No commentary. No backticks.
 }
 `;
 
+    // 2. Send inline base64 image to Gemini
     const geminiRes = await fetch(
       "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" +
         apiKey,
@@ -48,7 +54,12 @@ Return ONLY valid JSON. No markdown. No commentary. No backticks.
             {
               parts: [
                 { text: prompt },
-                { image_url: imageUrl },
+                {
+                  inline_data: {
+                    mime_type: "image/jpeg",
+                    data: base64Image,
+                  },
+                },
               ],
             },
           ],
