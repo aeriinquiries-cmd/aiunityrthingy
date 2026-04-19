@@ -1,9 +1,4 @@
 import { put } from "@vercel/blob";
-
-export const config = {
-  runtime: "edge",
-};
-
 // Discord logging helper
 async function log(msg) {
   try {
