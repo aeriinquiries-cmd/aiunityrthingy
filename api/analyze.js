@@ -8,15 +8,9 @@ export default async function handler(req) {
   try {
     const { imageUrl, userBrand } = await req.json();
 
-    console.log("Analyze request received");
-    console.log("Incoming imageUrl:", imageUrl);
-
-    // Download image
     const imgRes = await fetch(imageUrl);
     const imgBuffer = await imgRes.arrayBuffer();
     const base64Image = Buffer.from(imgBuffer).toString("base64");
-
-    console.log("Image downloaded, sending to Gemini...");
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({
@@ -26,17 +20,22 @@ export default async function handler(req) {
     const prompt = `
 You are an AI that extracts clothing attributes from an image.
 
-### CRITICAL RULES:
-1. ALWAYS return valid JSON only.
-2. NEVER include markdown, backticks, or commentary.
-3. If userBrand is provided and not empty:
-   - Use userBrand as the "brand" field.
-   - ONLY override it if the image clearly shows a different brand logo.
-4. If no brand is visible and userBrand is empty, return "brand": null.
-5. clothingName must be a simple, human-friendly name.
-6. category must be a general clothing category (e.g., "Hoodie", "Jeans", "Sneakers").
-7. subtype must be a more specific version of category.
-8. keywords must be a list of descriptive tags.
+### BRAND RULES (IMPORTANT)
+1. If userBrand is provided and not empty:
+   - Treat it as the *intended* brand.
+   - Research the brand's typical style, graphics, fonts, colors, and design language.
+   - Compare the clothing in the image to that brand's known style.
+   - If the item visually matches the brand's style, return userBrand.
+   - If the item clearly shows a different brand logo (e.g., Nike swoosh, Adidas stripes), override userBrand with the visible brand.
+   - If no visible brand is shown, ALWAYS return userBrand.
+
+### OUTPUT RULES
+- ALWAYS return valid JSON only.
+- NEVER include markdown, backticks, or commentary.
+- clothingName must be a simple, human-friendly name.
+- category must be general (e.g., "Hoodie", "Jeans", "Sneakers").
+- subtype must be more specific.
+- keywords must be descriptive tags.
 
 ### OUTPUT FORMAT:
 {
@@ -60,30 +59,24 @@ You are an AI that extracts clothing attributes from an image.
     ]);
 
     let text = result.response.text();
-    console.log("Gemini raw:", text);
-
-    // Remove markdown or junk
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
-
-    console.log("Cleaned text:", text);
 
     const json = JSON.parse(text);
 
-    // Apply brand override logic
+    // FINAL BRAND OVERRIDE LOGIC
     if (userBrand && userBrand.trim() !== "") {
-      if (!json.brand || json.brand === null) {
+      // If Gemini didn't detect a different brand, force userBrand
+      if (!json.brand || json.brand.trim() === "") {
         json.brand = userBrand.trim();
       }
     }
-
-    console.log("Final JSON:", json);
 
     return new Response(JSON.stringify(json), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
+
   } catch (err) {
-    console.error("Analyze error:", err);
     return new Response(
       JSON.stringify({ error: "Analyze failed", details: err.message }),
       { status: 500 }
