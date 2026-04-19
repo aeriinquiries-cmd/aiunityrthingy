@@ -4,49 +4,44 @@ export const config = {
   runtime: "nodejs",
 };
 
-export default async function handler(req, res) {
+export default async function handler(req) {
+  console.log("🔥 analyze.js invoked");
+
   try {
     const body = await req.json();
+    console.log("📥 Incoming body:", body);
+
     const { imageUrl, userBrand } = body;
 
     if (!imageUrl) {
-      return new Response(
-        JSON.stringify({ error: "Missing imageUrl" }),
-        { status: 400 }
-      );
+      console.error("❌ Missing imageUrl");
+      return new Response(JSON.stringify({ error: "Missing imageUrl" }), { status: 400 });
     }
 
-    // Download image
+    console.log("🌐 Downloading image:", imageUrl);
+
     const imgRes = await fetch(imageUrl);
+    console.log("📡 Image fetch status:", imgRes.status);
+
     const imgBuffer = await imgRes.arrayBuffer();
+    console.log("📦 Image buffer size:", imgBuffer.byteLength);
+
     const base64Image = Buffer.from(imgBuffer).toString("base64");
+    console.log("🧬 Base64 length:", base64Image.length);
 
-    // Initialize Gemini
+    console.log("🤖 Initializing Gemini…");
+
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-    });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-    // Prompt
     const prompt = `
 You are an AI that extracts clothing attributes from an image.
 
-### BRAND RULES (IMPORTANT)
-- If userBrand is provided and not empty:
-  - Treat it as the intended brand.
-  - Research the brand's typical style, graphics, fonts, colors, and design language.
-  - Compare the clothing in the image to that brand's known style.
-  - If the item visually matches the brand's style, return userBrand.
-  - If the item clearly shows a different brand logo (Nike swoosh, Adidas stripes, etc.), override userBrand with the visible brand.
-  - If no visible brand is shown, ALWAYS return userBrand.
-
-### OUTPUT RULES
-- ALWAYS return valid JSON only.
-- NEVER include markdown, backticks, or commentary.
-- clothingName must be simple and human-friendly.
-- category must be general (Hoodie, Jeans, Sneakers).
-- subtype must be more specific.
-- keywords must be descriptive tags.
+### BRAND RULES
+- If userBrand exists, treat it as the intended brand.
+- Research the brand's style.
+- If no visible brand is shown, ALWAYS return userBrand.
+- Only override if a clear different brand logo is visible.
 
 ### OUTPUT FORMAT:
 {
@@ -59,7 +54,8 @@ You are an AI that extracts clothing attributes from an image.
 }
 `;
 
-    // Send to Gemini
+    console.log("🚀 Sending request to Gemini…");
+
     const result = await model.generateContent([
       {
         inlineData: {
@@ -70,21 +66,35 @@ You are an AI that extracts clothing attributes from an image.
       { text: prompt },
     ]);
 
+    console.log("📨 Gemini raw response:", result);
+
     let text = result.response.text();
+    console.log("📝 Gemini text output:", text);
 
-    // Clean JSON
-    text = text.replace(/```json/g, "")
-               .replace(/```/g, "")
-               .trim();
+    text = text.replace(/```json/g, "").replace(/```/g, "").trim();
+    console.log("🧹 Cleaned JSON text:", text);
 
-    let json = JSON.parse(text);
+    let json;
+    try {
+      json = JSON.parse(text);
+      console.log("✅ Parsed JSON:", json);
+    } catch (parseErr) {
+      console.error("❌ JSON parse error:", parseErr);
+      return new Response(
+        JSON.stringify({ error: "JSON parse failed", raw: text }),
+        { status: 500 }
+      );
+    }
 
-    // FINAL BRAND OVERRIDE
+    // BRAND OVERRIDE
     if (userBrand && userBrand.trim() !== "") {
+      console.log("🎨 Applying brand override:", userBrand);
       if (!json.brand || json.brand.trim() === "") {
         json.brand = userBrand.trim();
       }
     }
+
+    console.log("🏁 Final JSON:", json);
 
     return new Response(JSON.stringify(json), {
       status: 200,
@@ -92,11 +102,9 @@ You are an AI that extracts clothing attributes from an image.
     });
 
   } catch (err) {
+    console.error("💥 analyze.js crashed:", err);
     return new Response(
-      JSON.stringify({
-        error: "Analyze failed",
-        details: err.message,
-      }),
+      JSON.stringify({ error: "Analyze failed", details: err.message }),
       { status: 500 }
     );
   }
