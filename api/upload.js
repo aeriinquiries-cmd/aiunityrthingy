@@ -1,6 +1,7 @@
 export const config = {
-  runtime: "edge",
+  runtime: "nodejs18.x",
 };
+
 
 import { put } from "@vercel/blob";
 
