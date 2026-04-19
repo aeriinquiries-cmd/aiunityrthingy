@@ -1,4 +1,7 @@
+export const runtime = "nodejs";
+
 import { put } from "@vercel/blob";
+
 // Discord logging helper
 async function log(msg) {
   try {
@@ -12,36 +15,44 @@ async function log(msg) {
   } catch (e) {}
 }
 
-export default async function handler(req) {
+// Helper to read JSON body in Node.js
+async function readJson(req) {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    req.on("data", (chunk) => (body += chunk));
+    req.on("end", () => {
+      try {
+        resolve(JSON.parse(body));
+      } catch (err) {
+        reject(err);
+      }
+    });
+  });
+}
+
+export default async function handler(req, res) {
   try {
     await log("Analyze request received");
 
     if (req.method !== "POST") {
       await log("Invalid method");
-      return new Response(JSON.stringify({ error: "POST only" }), {
-        status: 405,
-      });
+      return res.status(405).json({ error: "POST only" });
     }
 
-    const { imageUrl } = await req.json();
+    const { imageUrl } = await readJson(req);
     await log("Incoming imageUrl: " + imageUrl);
 
     if (!imageUrl) {
       await log("Missing imageUrl");
-      return new Response(JSON.stringify({ error: "Missing imageUrl" }), {
-        status: 400,
-      });
+      return res.status(400).json({ error: "Missing imageUrl" });
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       await log("Missing GEMINI_API_KEY");
-      return new Response(JSON.stringify({ error: "Missing GEMINI_API_KEY" }), {
-        status: 500,
-      });
+      return res.status(500).json({ error: "Missing GEMINI_API_KEY" });
     }
 
-    // 1. Download the image from Vercel Blob
     await log("Downloading image...");
     const imgRes = await fetch(imageUrl);
     await log("Image status: " + imgRes.status);
@@ -51,34 +62,17 @@ export default async function handler(req) {
 
     if (imgBuffer.byteLength < 500) {
       await log("ERROR: Blob returned a tiny or corrupted file");
-      return new Response(
-        JSON.stringify({
-          error: "Image is empty or corrupted",
-        }),
-        { status: 400 }
-      );
+      return res.status(400).json({ error: "Image is empty or corrupted" });
     }
 
-    // Convert to base64 (Edge-safe)
     await log("Converting to base64...");
-    const base64Image = btoa(
-      String.fromCharCode(...new Uint8Array(imgBuffer))
-    );
+    const base64Image = Buffer.from(imgBuffer).toString("base64");
     await log("Base64 length: " + base64Image.length);
 
-    // Improved prompt
     const prompt = `
 Analyze the clothing item in the image and return ONLY valid JSON.
 Do NOT guess a brand unless it is clearly visible.
 Be as specific as possible about the item type.
-
-Rules:
-- If it's pants, specify type (jeans, joggers, cargos, sweatpants, chinos, shorts, etc.)
-- If it's shoes, specify type (sneakers, boots, slides, loafers, etc.)
-- If it's a top, specify type (hoodie, tee, long sleeve, jacket, etc.)
-- Extract ANY visible text or logos.
-- Describe patterns, graphics, materials, and style.
-- Do NOT return markdown or commentary.
 
 Return JSON in this format:
 
@@ -92,7 +86,6 @@ Return JSON in this format:
 }
 `;
 
-    // 2. Send to Gemini 2.5 Flash
     await log("Sending to Gemini...");
     const geminiRes = await fetch(
       "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=" +
@@ -124,7 +117,6 @@ Return JSON in this format:
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
     await log("Gemini text: " + text);
 
-    // CLEAN OUTPUT
     const cleaned = text
       .replace(/```json/gi, "")
       .replace(/```/g, "")
@@ -133,7 +125,6 @@ Return JSON in this format:
 
     await log("Cleaned text: " + cleaned);
 
-    // EXTRACT JSON
     const start = cleaned.indexOf("{");
     const end = cleaned.lastIndexOf("}");
     const jsonString = cleaned.substring(start, end + 1);
@@ -144,25 +135,16 @@ Return JSON in this format:
       await log("Parsed JSON: " + JSON.stringify(parsed));
     } catch (err) {
       await log("JSON parse error: " + err.message);
-      return new Response(
-        JSON.stringify({
-          error: "Model returned invalid JSON",
-          raw: cleaned,
-        }),
-        { status: 500 }
-      );
+      return res.status(500).json({
+        error: "Model returned invalid JSON",
+        raw: cleaned,
+      });
     }
 
     await log("Returning final JSON");
-
-    return new Response(JSON.stringify(parsed), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+    return res.status(200).json(parsed);
   } catch (err) {
     await log("FATAL ERROR: " + err.message);
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-    });
+    return res.status(500).json({ error: err.message });
   }
 }
