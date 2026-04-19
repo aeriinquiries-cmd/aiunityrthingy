@@ -73,6 +73,7 @@ export default async function handler(req, res) {
 Analyze the clothing item in the image and return ONLY valid JSON.
 Do NOT guess a brand unless it is clearly visible.
 Be as specific as possible about the item type.
+If the userBrand field is provided and not empty, ALWAYS return that brand as the "brand" field unless the image clearly shows a different brand logo.
 
 Return JSON in this format:
 
