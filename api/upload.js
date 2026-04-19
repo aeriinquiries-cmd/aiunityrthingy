@@ -2,7 +2,6 @@ export const runtime = "nodejs";
 
 import { put } from "@vercel/blob";
 
-
 // Discord logging helper
 async function log(msg) {
   try {
