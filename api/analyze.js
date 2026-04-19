@@ -12,14 +12,12 @@ async function log(msg) {
         content: "```json\n" + msg + "\n```",
       }),
     });
-  } catch (e) {
-    // ignore logging failures
-  }
+  } catch (e) {}
 }
 
 export default async function handler(req) {
   try {
-    await log("Request received");
+    await log("Analyze request received");
 
     if (req.method !== "POST") {
       await log("Invalid method");
@@ -46,7 +44,7 @@ export default async function handler(req) {
       });
     }
 
-    // 1. Download the image
+    // 1. Download the image from Vercel Blob
     await log("Downloading image...");
     const imgRes = await fetch(imageUrl);
     await log("Image status: " + imgRes.status);
@@ -54,14 +52,24 @@ export default async function handler(req) {
     const imgBuffer = await imgRes.arrayBuffer();
     await log("Image size bytes: " + imgBuffer.byteLength);
 
-    // Edge-safe base64 conversion
+    if (imgBuffer.byteLength < 500) {
+      await log("ERROR: Blob returned a tiny or corrupted file");
+      return new Response(
+        JSON.stringify({
+          error: "Image is empty or corrupted",
+        }),
+        { status: 400 }
+      );
+    }
+
+    // Convert to base64 (Edge-safe)
     await log("Converting to base64...");
     const base64Image = btoa(
       String.fromCharCode(...new Uint8Array(imgBuffer))
     );
     await log("Base64 length: " + base64Image.length);
 
-    // Improved prompt for better pants/shoes detection
+    // Improved prompt
     const prompt = `
 Analyze the clothing item in the image and return ONLY valid JSON.
 Do NOT guess a brand unless it is clearly visible.
