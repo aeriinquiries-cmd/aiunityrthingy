@@ -9,7 +9,7 @@ export default async function handler(req, res) {
   await discordLog("🔥 analyze.js invoked");
 
   try {
-    // FIXED: Node.js serverless functions use req.on("data")
+    // Read raw body (Node.js serverless format)
     let raw = "";
     req.on("data", chunk => {
       raw += chunk;
@@ -21,7 +21,7 @@ export default async function handler(req, res) {
 
     await discordLog("📥 Raw request body: " + raw);
 
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(body);
     await discordLog("📥 Parsed body: " + JSON.stringify(parsed));
 
     const { imageUrl, userBrand } = parsed;
@@ -48,15 +48,8 @@ export default async function handler(req, res) {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-const result = await model.generateContent([
-  {
-    inlineData: {
-      mimeType: "image/jpeg",
-      data: base64Image,
-    },
-  },
-  {
-    text: `
+    // ⭐ FINAL BRAND‑RESEARCH PROMPT (ONLY THIS ONE)
+    const prompt = `
 You are an AI that extracts clothing attributes from an image.
 
 ### BRAND REASONING (INTERNAL ONLY — DO NOT OUTPUT TEXT)
@@ -81,25 +74,30 @@ You are an AI that extracts clothing attributes from an image.
 ### TASK
 Analyze the image and fill the JSON fields.
 Return ONLY the JSON object.
-`
-  }
-]);
+`;
 
     await discordLog("🚀 Sending request to Gemini…");
 
-const result = await model.generateContent([
-  {
-    inlineData: {
-      mimeType: "image/jpeg",
-      data: base64Image,
-    },
-  },
+    const result = await model.generateContent([
+      {
+        inlineData: {
+          mimeType: "image/jpeg",
+          data: base64Image,
+        },
+      },
+      { text: prompt }
+    ]);
+
     await discordLog("📨 Gemini raw response: " + JSON.stringify(result));
 
     let text = result.response.text();
     await discordLog("📝 Gemini text output: " + text);
 
-    text = text.replace(/```json/g, "").replace(/```/g, "").trim();
+    // Clean markdown if any
+    text = text.replace(/```json/g, "")
+               .replace(/```/g, "")
+               .trim();
+
     await discordLog("🧹 Cleaned JSON text: " + text);
 
     let json;
@@ -112,8 +110,9 @@ const result = await model.generateContent([
       return;
     }
 
+    // Brand override fallback
     if (userBrand && userBrand.trim() !== "") {
-      await discordLog("🎨 Applying brand override: " + userBrand);
+      await discordLog("🎨 Applying brand override fallback: " + userBrand);
       if (!json.brand || json.brand.trim() === "") {
         json.brand = userBrand.trim();
       }
