@@ -85,8 +85,6 @@ Return ONLY the JSON object.
   }
 ]);
 
-
-
     await discordLog("🚀 Sending request to Gemini…");
 
 const result = await model.generateContent([
