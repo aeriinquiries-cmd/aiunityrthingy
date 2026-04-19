@@ -1,5 +1,3 @@
-// api/analyze.js
-
 export const config = {
   runtime: "edge",
 };
@@ -13,7 +11,6 @@ export default async function handler(req) {
     }
 
     const { imageUrl } = await req.json();
-
     if (!imageUrl) {
       return new Response(JSON.stringify({ error: "Missing imageUrl" }), {
         status: 400,
@@ -28,7 +25,7 @@ export default async function handler(req) {
     }
 
     const prompt = `
-You are a clothing recognition AI. Analyze the image and return ONLY valid JSON with:
+Return ONLY valid JSON. No markdown. No commentary. No backticks.
 
 {
   "clothingName": "",
@@ -38,8 +35,6 @@ You are a clothing recognition AI. Analyze the image and return ONLY valid JSON 
   "subtype": "",
   "keywords": []
 }
-
-Be extremely accurate. No extra text.
 `;
 
     const geminiRes = await fetch(
@@ -62,15 +57,32 @@ Be extremely accurate. No extra text.
     );
 
     const data = await geminiRes.json();
-
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    // Extract JSON safely
-    const start = text.indexOf("{");
-    const end = text.lastIndexOf("}");
-    const jsonString = text.substring(start, end + 1);
+    // CLEAN THE OUTPUT
+    const cleaned = text
+      .replace(/```json/gi, "")
+      .replace(/```/g, "")
+      .replace(/[\u0000-\u001F]+/g, "")
+      .trim();
 
-    const parsed = JSON.parse(jsonString);
+    // EXTRACT JSON
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+    const jsonString = cleaned.substring(start, end + 1);
+
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonString);
+    } catch (err) {
+      return new Response(
+        JSON.stringify({
+          error: "Model returned invalid JSON",
+          raw: cleaned,
+        }),
+        { status: 500 }
+      );
+    }
 
     return new Response(JSON.stringify(parsed), {
       status: 200,
