@@ -48,10 +48,44 @@ export default async function handler(req, res) {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-    const prompt = `
+const result = await model.generateContent([
+  {
+    inlineData: {
+      mimeType: "image/jpeg",
+      data: base64Image,
+    },
+  },
+  {
+    text: `
 You are an AI that extracts clothing attributes from an image.
-(… your prompt unchanged …)
-`;
+
+### BRAND REASONING (INTERNAL ONLY — DO NOT OUTPUT TEXT)
+- If userBrand is provided:
+  - Research the brand's typical style, graphics, fonts, colors, and design language.
+  - Compare the clothing in the image to that brand's known style.
+  - If the item visually matches the brand's style, set brand = userBrand.
+  - If a different brand logo is clearly visible (Nike swoosh, Adidas stripes, etc.), override userBrand.
+  - If no visible brand is shown, ALWAYS set brand = userBrand.
+- DO NOT output your reasoning. DO NOT output explanations. Only output JSON.
+
+### REQUIRED JSON OUTPUT (NO MARKDOWN, NO TEXT, NO COMMENTS)
+{
+  "clothingName": "",
+  "color": "",
+  "brand": "",
+  "category": "",
+  "subtype": "",
+  "keywords": []
+}
+
+### TASK
+Analyze the image and fill the JSON fields.
+Return ONLY the JSON object.
+`
+  }
+]);
+
+
 
     await discordLog("🚀 Sending request to Gemini…");
 
@@ -62,43 +96,6 @@ const result = await model.generateContent([
       data: base64Image,
     },
   },
-  {
-    text: `
-You MUST return ONLY valid JSON. 
-No markdown. 
-No explanations. 
-No commentary. 
-No extra text. 
-No asterisks. 
-No bold text. 
-No lists. 
-No sentences. 
-ONLY return a JSON object.
-
-If you cannot determine a field, return an empty string.
-
-### REQUIRED JSON FORMAT:
-{
-  "clothingName": "",
-  "color": "",
-  "brand": "",
-  "category": "",
-  "subtype": "",
-  "keywords": []
-}
-
-### BRAND RULES:
-- If userBrand exists, treat it as the intended brand.
-- Only override if a different brand logo is clearly visible.
-- If no visible brand, ALWAYS return userBrand.
-
-### IMAGE ANALYSIS:
-Describe the clothing item and fill the JSON fields accordingly.
-`
-  }
-]);
-
-
     await discordLog("📨 Gemini raw response: " + JSON.stringify(result));
 
     let text = result.response.text();
