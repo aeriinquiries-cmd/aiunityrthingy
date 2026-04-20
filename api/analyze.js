@@ -43,12 +43,19 @@ export default async function handler(req, res) {
     const base64Image = Buffer.from(imgBuffer).toString("base64");
     await discordLog("🧬 Base64 length: " + base64Image.length);
 
-    await discordLog("🤖 Initializing Gemini…");
+    await discordLog("🤖 Initializing Gemini (v1beta)…");
 
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    // ⭐ Correct API version + model
+    const genAI = new GoogleGenerativeAI({
+      apiKey: process.env.GEMINI_API_KEY,
+      apiVersion: "v1beta"
+    });
 
-    // ⭐ FINAL BRAND‑RESEARCH PROMPT (ONLY THIS ONE)
+    const model = genAI.getGenerativeModel({
+      model: "gemini-1.5-flash-latest"
+    });
+
+    // ⭐ FINAL BRAND‑RESEARCH PROMPT
     const prompt = `
 You are an AI that extracts clothing attributes from an image.
 
