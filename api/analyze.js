@@ -8,7 +8,6 @@ export default async function handler(req, res) {
   await discordLog("🔥 analyze.js (OLLAMA) invoked");
 
   try {
-    // Read raw body
     let raw = "";
     req.on("data", chunk => raw += chunk);
 
@@ -32,12 +31,11 @@ export default async function handler(req, res) {
 
     await discordLog("🧬 Base64 ready, sending to Ollama…");
 
-    // ⭐ OLLAMA REQUEST
-    const ollamaRes = await fetch("https://subjects-portfolio-del-traditions.trycloudflare.com", {
+    const ollamaRes = await fetch("https://skimming-elk-antibody.ngrok-free.dev/api/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "llava", // or llava:34b, moondream, llava-phi3
+        model: "llava",
         prompt: `
 You are an AI that extracts clothing attributes from an image.
 
@@ -60,7 +58,6 @@ Analyze the clothing in the image.
     const streamText = await ollamaRes.text();
     await discordLog("📨 Ollama raw output: " + streamText);
 
-    // Ollama streams chunks, so extract the final JSON
     const lastChunk = streamText.trim().split("\n").pop();
     let json;
 
@@ -71,7 +68,6 @@ Analyze the clothing in the image.
       return res.status(500).json({ error: "JSON parse failed", raw: lastChunk });
     }
 
-    // Brand override fallback
     if (userBrand && !json.brand) {
       json.brand = userBrand;
     }
