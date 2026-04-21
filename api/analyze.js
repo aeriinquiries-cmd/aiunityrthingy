@@ -31,12 +31,16 @@ export default async function handler(req, res) {
 
     await discordLog("🧬 Base64 ready, sending to Ollama…");
 
-    const ollamaRes = await fetch("https://skimming-elk-antibody.ngrok-free.dev/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "llava",
-        prompt: `
+const ollamaRes = await fetch("https://skimming-elk-antibody.ngrok-free.dev/api/generate", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "ngrok-skip-browser-warning": "true",
+    "Host": "localhost"
+  },
+  body: JSON.stringify({
+    model: "llava",
+    prompt: `
 You are an AI that extracts clothing attributes from an image.
 
 Return ONLY valid JSON:
@@ -51,9 +55,10 @@ Return ONLY valid JSON:
 
 Analyze the clothing in the image.
 `,
-        images: [base64Image]
-      })
-    });
+    images: [base64Image]
+  })
+});
+
 
     const streamText = await ollamaRes.text();
     await discordLog("📨 Ollama raw output: " + streamText);
