@@ -37,7 +37,7 @@ export default async function handler(req, res) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "llava", // or llava:34b, moondream, etc.
+        model: "llava", // or llava:34b, moondream, llava-phi3
         prompt: `
 You are an AI that extracts clothing attributes from an image.
 
