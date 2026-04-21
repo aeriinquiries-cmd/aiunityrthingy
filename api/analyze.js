@@ -1,4 +1,3 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { discordLog } from "./discordLog.js";
 
 export const config = {
@@ -6,28 +5,21 @@ export const config = {
 };
 
 export default async function handler(req, res) {
-  await discordLog("🔥 analyze.js invoked");
+  await discordLog("🔥 analyze.js (OLLAMA) invoked");
 
   try {
-    // Read raw body (Node.js serverless format)
+    // Read raw body
     let raw = "";
-    req.on("data", chunk => {
-      raw += chunk;
-    });
+    req.on("data", chunk => raw += chunk);
 
     const body = await new Promise(resolve => {
       req.on("end", () => resolve(raw));
     });
 
-    await discordLog("📥 Raw request body: " + raw);
-
     const parsed = JSON.parse(body);
-    await discordLog("📥 Parsed body: " + JSON.stringify(parsed));
-
     const { imageUrl, userBrand } = parsed;
 
     if (!imageUrl) {
-      await discordLog("❌ Missing imageUrl");
       res.status(400).json({ error: "Missing imageUrl" });
       return;
     }
@@ -35,38 +27,21 @@ export default async function handler(req, res) {
     await discordLog("🌐 Downloading image: " + imageUrl);
 
     const imgRes = await fetch(imageUrl);
-    await discordLog("📡 Image fetch status: " + imgRes.status);
-
     const imgBuffer = await imgRes.arrayBuffer();
-    await discordLog("📦 Image buffer size: " + imgBuffer.byteLength);
-
     const base64Image = Buffer.from(imgBuffer).toString("base64");
-    await discordLog("🧬 Base64 length: " + base64Image.length);
 
-    await discordLog("🤖 Initializing Gemini (v1)…");
+    await discordLog("🧬 Base64 ready, sending to Ollama…");
 
-    // ⭐ Your key works with v1, so we stay on v1
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
-    // ⭐ Use gemini‑2.0‑flash (high quota, image support, stable)
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash"
-    });
-
-    // ⭐ BRAND‑RESEARCH PROMPT
-    const prompt = `
+    // ⭐ OLLAMA REQUEST
+    const ollamaRes = await fetch("http://localhost:11434/api/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "llava", // or llava:34b, moondream, etc.
+        prompt: `
 You are an AI that extracts clothing attributes from an image.
 
-### BRAND REASONING (INTERNAL ONLY — DO NOT OUTPUT TEXT)
-- If userBrand is provided:
-  - Research the brand's typical style, graphics, fonts, colors, and design language.
-  - Compare the clothing in the image to that brand's known style.
-  - If the item visually matches the brand's style, set brand = userBrand.
-  - If a different brand logo is clearly visible (Nike swoosh, Adidas stripes, etc.), override userBrand.
-  - If no visible brand is shown, ALWAYS set brand = userBrand.
-- DO NOT output your reasoning. DO NOT output explanations. Only output JSON.
-
-### REQUIRED JSON OUTPUT (NO MARKDOWN, NO TEXT, NO COMMENTS)
+Return ONLY valid JSON:
 {
   "clothingName": "",
   "color": "",
@@ -76,55 +51,32 @@ You are an AI that extracts clothing attributes from an image.
   "keywords": []
 }
 
-### TASK
-Analyze the image and fill the JSON fields.
-Return ONLY the JSON object.
-`;
+Analyze the clothing in the image.
+`,
+        images: [base64Image]
+      })
+    });
 
-    await discordLog("🚀 Sending request to Gemini…");
+    const streamText = await ollamaRes.text();
+    await discordLog("📨 Ollama raw output: " + streamText);
 
-    const result = await model.generateContent([
-      {
-        inlineData: {
-          mimeType: "image/jpeg",
-          data: base64Image,
-        },
-      },
-      { text: prompt }
-    ]);
-
-    await discordLog("📨 Gemini raw response: " + JSON.stringify(result));
-
-    let text = result.response.text();
-    await discordLog("📝 Gemini text output: " + text);
-
-    // Clean markdown if any
-    text = text.replace(/```json/g, "")
-               .replace(/```/g, "")
-               .trim();
-
-    await discordLog("🧹 Cleaned JSON text: " + text);
-
+    // Ollama streams chunks, so extract the final JSON
+    const lastChunk = streamText.trim().split("\n").pop();
     let json;
+
     try {
-      json = JSON.parse(text);
-      await discordLog("✅ Parsed JSON: " + JSON.stringify(json));
-    } catch (parseErr) {
-      await discordLog("❌ JSON parse error: " + parseErr.message);
-      res.status(500).json({ error: "JSON parse failed", raw: text });
-      return;
+      json = JSON.parse(lastChunk);
+    } catch (err) {
+      await discordLog("❌ JSON parse error: " + err.message);
+      return res.status(500).json({ error: "JSON parse failed", raw: lastChunk });
     }
 
     // Brand override fallback
-    if (userBrand && userBrand.trim() !== "") {
-      await discordLog("🎨 Applying brand override fallback: " + userBrand);
-      if (!json.brand || json.brand.trim() === "") {
-        json.brand = userBrand.trim();
-      }
+    if (userBrand && !json.brand) {
+      json.brand = userBrand;
     }
 
     await discordLog("🏁 Final JSON: " + JSON.stringify(json));
-
     res.status(200).json(json);
 
   } catch (err) {
