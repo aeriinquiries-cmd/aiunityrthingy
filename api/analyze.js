@@ -33,7 +33,7 @@ export default async function handler(req, res) {
     await discordLog("🧬 Base64 ready, sending to Ollama…");
 
     // ⭐ OLLAMA REQUEST
-    const ollamaRes = await fetch("http://localhost:11434/api/generate", {
+    const ollamaRes = await fetch("https://subjects-portfolio-del-traditions.trycloudflare.com", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
